@@ -258,15 +258,20 @@ class WordPressScanner:
                 print(f"Identified the following user: {user['id']}, {user['name']}, {user['slug']}")
             self.users = users
 
-    def extract_version(self, text):
-        try:
-            match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', text)
+    def extract_version(self):
+    try:
+        response = requests.get(self.url, verify=True)  # Verify the SSL certificate
+        if response.status_code == 200:
+            match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response.text)
             if match:
                 return match.group(1)
             else:
-                print("Cannot read WordPress version from the provided text.")
-        except Exception as e:
-            print(f"An error occurred while extracting WordPress version: {str(e)}")
+                print("WordPress version not found in the response.")
+        else:
+            print(f"Failed to fetch content from {self.url}. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"An error occurred while extracting WordPress version: {str(e}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
