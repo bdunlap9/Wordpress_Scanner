@@ -155,7 +155,7 @@ class WordPressScanner:
         print(f"URL     : {self.url}")
         response = requests.get(self.url, verify=True)  # Verify the SSL certificate
         if "200" in str(response):
-            self.version = self.extract_version(response.text)
+            self.version = self.extract_version()
             print(f"Version : {self.version}")
 
     def check_readme(self):
@@ -272,7 +272,7 @@ class WordPressScanner:
             else:
                 print(f"Failed to fetch content from {self.url}. Status code: {response.status_code}")
         except Exception as e:
-            print(f"An error occurred while extracting WordPress version: {str(e}")
+            print(f"An error occurred while extracting WordPress version: {str(e)}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
