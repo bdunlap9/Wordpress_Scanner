@@ -4,9 +4,13 @@ from bs4 import BeautifulSoup
 from bs4.element import Comment
 from lxml import etree
 
+
 class WordPressScanner:
     def __init__(self, url, user_agent, nocheck):
-        self.url = url
+        if url.endswith('/'):
+            self.url = url[:-1]
+        else:
+            self.url = url
         self.user_agent = user_agent
         self.nocheck = nocheck
         self.files = set()
@@ -19,13 +23,14 @@ class WordPressScanner:
         self.check_backup_file()
         self.check_directory_listing()
         self.check_robots_text()
+        self.check_security_text()
         self.check_full_path_disclosure()
         website_content = self.get_website_content()  # Fetch the website content
         self.detect_wordpress_plugins(website_content)  # Pass the content to the detection function
         self.enum_wordpress_users()
         self.is_xml_rpc()
         self.is_debug_log()
-        
+
         sitemap_url = self.url  # Define the sitemap URL
         processed_urls = set()  # Initialize a set for processed URLs
         forms_with_input = self.crawl_sitemap_for_forms(sitemap_url, processed_urls)
@@ -143,10 +148,10 @@ class WordPressScanner:
     def is_debug_log(self):
         debug_log_url = self.url + '/debug.log'
         response = requests.get(debug_log_url, headers={"User-Agent": self.user_agent}, verify=True)
-    
+
         if response.status_code == 200:
             if "404" not in response.text:
-                self.files.add('debug.log')
+                self.files.add('/debug.log')
                 print(f"Debug log file found: {debug_log_url}")
         else:
             print(f"Debug log file not found at: {debug_log_url}")
@@ -155,60 +160,60 @@ class WordPressScanner:
         print(f"URL     : {self.url}")
         response = requests.get(self.url, verify=True)  # Verify the SSL certificate
         if "200" in str(response):
-            self.version = self.extract_version(response.text)
+            self.version = self.extract_version()
             print(f"Version : {self.version}")
 
     def check_readme(self):
         response = requests.get(self.url + '/readme.html', verify=True)  # Verify the SSL certificate
         if "200" in str(response):
-            print(f"Readme file found at {self.url}readme.html")
+            print(f"Readme file found at {self.url}/readme.html")
 
     def check_debug_log(self):
         response = requests.get(self.url + '/debug.log', verify=True)  # Verify the SSL certificate
         if "200" in str(response) and "404" not in response.text:
-            print(f"Debug log file found at {self.url}debug.log")
+            print(f"Debug log file found at {self.url}/debug.log")
 
     def check_backup_file(self):
         backup_files = [
-            'wp-config.php~', 'wp-config.php.save', '.wp-config.php.bck', 
-            'wp-config.php.bck', '.wp-config.php.swp', 'wp-config.php.swp', 
-            'wp-config.php.swo', 'wp-config.php_bak', 'wp-config.bak', 
-            'wp-config.php.bak', 'wp-config.save', 'wp-config.old', 
-            'wp-config.php.old', 'wp-config.php.orig', 'wp-config.orig', 
-            'wp-config.php.original', 'wp-config.original', 'wp-config.txt', 
-            'wp-config.php.txt', 'wp-config.backup', 'wp-config.php.backup', 
-            'wp-config.copy', 'wp-config.php.copy', 'wp-config.tmp', 
-            'wp-config.php.tmp', 'wp-config.zip', 'wp-config.php.zip', 
+            'wp-config.php~', 'wp-config.php.save', '.wp-config.php.bck',
+            'wp-config.php.bck', '.wp-config.php.swp', 'wp-config.php.swp',
+            'wp-config.php.swo', 'wp-config.php_bak', 'wp-config.bak',
+            'wp-config.php.bak', 'wp-config.save', 'wp-config.old',
+            'wp-config.php.old', 'wp-config.php.orig', 'wp-config.orig',
+            'wp-config.php.original', 'wp-config.original', 'wp-config.txt',
+            'wp-config.php.txt', 'wp-config.backup', 'wp-config.php.backup',
+            'wp-config.copy', 'wp-config.php.copy', 'wp-config.tmp',
+            'wp-config.php.tmp', 'wp-config.zip', 'wp-config.php.zip',
             'wp-config.db', 'wp-config.php.db', 'wp-config.dat',
-            'wp-config.php.dat', 'wp-config.tar.gz', 'wp-config.php.tar.gz', 
-            'wp-config.back', 'wp-config.php.back', 'wp-config.test', 
-            'wp-config.php.test', "wp-config.php.1","wp-config.php.2",
+            'wp-config.php.dat', 'wp-config.tar.gz', 'wp-config.php.tar.gz',
+            'wp-config.back', 'wp-config.php.back', 'wp-config.test',
+            'wp-config.php.test', "wp-config.php.1", "wp-config.php.2",
             "wp-config.php.3", "wp-config.php._inc", "wp-config_inc",
-            
-            'wp-config.php.SAVE', '.wp-config.php.BCK', 
-            'wp-config.php.BCK', '.wp-config.php.SWP', 'wp-config.php.SWP', 
-            'wp-config.php.SWO', 'wp-config.php_BAK', 'wp-config.BAK', 
-            'wp-config.php.BAK', 'wp-config.SAVE', 'wp-config.OLD', 
-            'wp-config.php.OLD', 'wp-config.php.ORIG', 'wp-config.ORIG', 
-            'wp-config.php.ORIGINAL', 'wp-config.ORIGINAL', 'wp-config.TXT', 
-            'wp-config.php.TXT', 'wp-config.BACKUP', 'wp-config.php.BACKUP', 
-            'wp-config.COPY', 'wp-config.php.COPY', 'wp-config.TMP', 
-            'wp-config.php.TMP', 'wp-config.ZIP', 'wp-config.php.ZIP', 
+
+            'wp-config.php.SAVE', '.wp-config.php.BCK',
+            'wp-config.php.BCK', '.wp-config.php.SWP', 'wp-config.php.SWP',
+            'wp-config.php.SWO', 'wp-config.php_BAK', 'wp-config.BAK',
+            'wp-config.php.BAK', 'wp-config.SAVE', 'wp-config.OLD',
+            'wp-config.php.OLD', 'wp-config.php.ORIG', 'wp-config.ORIG',
+            'wp-config.php.ORIGINAL', 'wp-config.ORIGINAL', 'wp-config.TXT',
+            'wp-config.php.TXT', 'wp-config.BACKUP', 'wp-config.php.BACKUP',
+            'wp-config.COPY', 'wp-config.php.COPY', 'wp-config.TMP',
+            'wp-config.php.TMP', 'wp-config.ZIP', 'wp-config.php.ZIP',
             'wp-config.DB', 'wp-config.php.DB', 'wp-config.DAT',
-            'wp-config.php.DAT', 'wp-config.TAR.GZ', 'wp-config.php.TAR.GZ', 
-            'wp-config.BACK', 'wp-config.php.BACK', 'wp-config.TEST', 
+            'wp-config.php.DAT', 'wp-config.TAR.GZ', 'wp-config.php.TAR.GZ',
+            'wp-config.BACK', 'wp-config.php.BACK', 'wp-config.TEST',
             'wp-config.php.TEST', "wp-config.php._INC", "wp-config_INC"
         ]
 
         for backup_file in backup_files:
             response = requests.get(self.url + '/' + backup_file, headers={"User-Agent": self.user_agent}, verify=True)
-            
+
             if response.status_code == 200:
                 print(f"A backup file has been found at {self.url + backup_file}")
 
     def check_directory_listing(self):
-        directories = ["wp-content/uploads/", "wp-content/plugins/", "wp-content/themes/","wp-includes/", "wp-admin/"]
-        dir_name    = ["Uploads", "Plugins", "Themes", "Includes", "Admin"]
+        directories = ["wp-content/uploads/", "wp-content/plugins/", "wp-content/themes/", "wp-includes/", "wp-admin/"]
+        dir_name = ["Uploads", "Plugins", "Themes", "Includes", "Admin"]
 
         for directory, name in zip(directories, dir_name):
             response = requests.get(self.url + '/' + directory, verify=True)  # Verify the SSL certificate
@@ -219,21 +224,32 @@ class WordPressScanner:
     def is_xml_rpc(self):
         r = requests.get(self.url + "/xmlrpc.php", headers={"User-Agent": self.user_agent}, verify=True)
         if r.status_code == 405:
-            self.files.add("xmlrpc.php")
-            print(f"XML-RPC Interface available under: {self.url}xmlrpc.php")
-
+            self.files.add("/xmlrpc.php")
+            print(f"XML-RPC Interface available under: {self.url}/xmlrpc.php")
 
     def check_robots_text(self):
         response = requests.get(self.url + "/robots.txt", verify=True)  # Verify the SSL certificate
-        
+
         if response.status_code == 200:
-            self.files.add("robots.txt")
-            print(f"robots.txt available under: {self.url}robots.txt")
+            self.files.add("/robots.txt")
+            print(f"robots.txt available under: {self.url}/robots.txt")
             lines = response.text.split('\n')
-        
+
             for l in lines:
                 if "Disallow:" in l:
                     print(f"Interesting entry from robots.txt: {l}")
+
+    def check_security_text(self):
+        response = requests.get(self.url + "/.well-known/security.txt", verify=True)  # Verify the SSL certificate
+
+        if response.status_code == 200:
+            self.files.add("/.well-known/security.txt")
+            print(f"security.txt available under: {self.url}/.well-known/security.txt")
+            lines = response.text.split('\n')
+
+            for l in lines:
+                if "Disallow:" in l:
+                    print(f"Interesting entry from security.txt: {l}")
 
     def check_full_path_disclosure(self):
         response = requests.get(self.url + "/wp-includes/rss-functions.php", verify=True)  # Verify the SSL certificate
@@ -247,9 +263,10 @@ class WordPressScanner:
 
             print(f"Full Path Disclosure (FPD) in {self.url + 'wp-includes/rss-functions.php'}")
             print(f"Exposed Path: {exposed_path}")
-    
+
     def enum_wordpress_users(self):
-        response = requests.get(self.url + "/wp-json/wp/v2/users", headers={"User-Agent": self.user_agent}, verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url + "/wp-json/wp/v2/users", headers={"User-Agent": self.user_agent},
+                                verify=True)  # Verify the SSL certificate
 
         if "200" in str(response):
             print("Enumerating WordPress users")
@@ -257,14 +274,16 @@ class WordPressScanner:
             for user in users:
                 print(f"Identified the following user: {user['id']}, {user['name']}, {user['slug']}")
             self.users = users
+        else:
+            print(f"Unable to identified users - Code {response.status_code}")
 
     def extract_version(self):
         try:
             response = requests.get(self.url, verify=True)  # Verify the SSL certificate
-        
+
             if response.status_code == 200:
                 match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response.text)
-                
+
                 if match:
                     return match.group(1)
                 else:
@@ -272,15 +291,17 @@ class WordPressScanner:
             else:
                 print(f"Failed to fetch content from {self.url}. Status code: {response.status_code}")
         except Exception as e:
-            print(f"An error occurred while extracting WordPress version: {str(e}")
+            print(f"An error occurred while extracting WordPress version: {str(e)}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
     parser.add_argument('url', help='The URL of the WordPress site to scan')
-    parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only !', help='User agent to use')
+    parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only !',
+                        help='User agent to use')
     parser.add_argument('--nocheck', action='store_true', help='Skip WordPress check')
 
     args = parser.parse_args()
-    
+
     scanner = WordPressScanner(args.url, args.user_agent, args.nocheck)
     scanner.scan()
