@@ -23,6 +23,7 @@ class WordPressScanner:
         self.check_backup_file()
         self.check_directory_listing()
         self.check_robots_text()
+        self.check_security_text()
         self.check_full_path_disclosure()
         website_content = self.get_website_content()  # Fetch the website content
         self.detect_wordpress_plugins(website_content)  # Pass the content to the detection function
@@ -237,6 +238,18 @@ class WordPressScanner:
             for l in lines:
                 if "Disallow:" in l:
                     print(f"Interesting entry from robots.txt: {l}")
+
+    def check_security_text(self):
+        response = requests.get(self.url + "/.well-known/security.txt", verify=True)  # Verify the SSL certificate
+
+        if response.status_code == 200:
+            self.files.add("/.well-known/security.txt")
+            print(f"security.txt available under: {self.url}/.well-known/security.txt")
+            lines = response.text.split('\n')
+
+            for l in lines:
+                if "Disallow:" in l:
+                    print(f"Interesting entry from security.txt: {l}")
 
     def check_full_path_disclosure(self):
         response = requests.get(self.url + "/wp-includes/rss-functions.php", verify=True)  # Verify the SSL certificate
