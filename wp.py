@@ -272,7 +272,7 @@ class WordPressScanner:
             else:
                 print(f"Failed to fetch content from {self.url}. Status code: {response.status_code}")
         except Exception as e:
-            print(f"An error occurred while extracting WordPress version: {str(e}")
+            print(f"An error occurred while extracting WordPress version: {str(e)}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
