@@ -164,7 +164,7 @@ class WordPressScanner:
             print(f"Readme file found at {self.url}readme.html")
 
     def check_debug_log(self):
-        response = requests.get(self.url + '/debug.log', verify=True)  # Verify the SSL certificate
+        response = requests.get(f"{self.url}/debug.log", verify=True)  # Verify the SSL certificate
         if "200" in str(response) and "404" not in response.text:
             print(f"Debug log file found at {self.url}debug.log")
 
@@ -217,18 +217,18 @@ class WordPressScanner:
                 print(f"{name} directory has directory listing enabled at {self.url + directory}")
 
     def is_xml_rpc(self):
-        r = requests.get(self.url + "/xmlrpc.php", headers={"User-Agent": self.user_agent}, verify=True)
+        r = requests.get(f"{self.url}/xmlrpc.php", headers={"User-Agent": self.user_agent}, verify=True)
         if r.status_code == 405:
             self.files.add("xmlrpc.php")
             print(f"XML-RPC Interface available under: {self.url}xmlrpc.php")
 
 
     def check_robots_text(self):
-        response = requests.get(self.url + "/robots.txt", verify=True)  # Verify the SSL certificate
+        response = requests.get(f"{self.url}/robots.txt", verify=True)  # Verify the SSL certificate
         
         if response.status_code == 200:
             self.files.add("robots.txt")
-            print(f"robots.txt available under: {self.url}robots.txt")
+            print(f"robots.txt available under: {self.url}/robots.txt")
             lines = response.text.split('\n')
         
             for l in lines:
