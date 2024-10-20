@@ -20,14 +20,14 @@ class WordPressScanner:
         self.check_directory_listing()
         self.check_robots_text()
         self.check_full_path_disclosure()
-        website_content = self.get_website_content()  # Fetch the website content
-        self.detect_wordpress_plugins(website_content)  # Pass the content to the detection function
+        website_content = self.get_website_content() 
+        self.detect_wordpress_plugins(website_content)  
         self.enum_wordpress_users()
         self.is_xml_rpc()
         self.is_debug_log()
         
-        sitemap_url = self.url  # Define the sitemap URL
-        processed_urls = set()  # Initialize a set for processed URLs
+        sitemap_url = self.url 
+        processed_urls = set()
         forms_with_input = self.crawl_sitemap_for_forms(sitemap_url, processed_urls)
 
         if forms_with_input:
@@ -38,7 +38,7 @@ class WordPressScanner:
             print("No URLs with input forms found.")
 
     def check_wordpress(self):
-        response = requests.get(self.url, verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url, verify=True) 
         if self.nocheck and not "wp-" in response.text:
             print("Not a WordPress site.")
             exit()
@@ -48,15 +48,13 @@ class WordPressScanner:
             processed_urls = set()
 
         try:
-            # Construct the robots.txt URL by appending '/robots.txt'
             robots_url = self.url + '/robots.txt'
             response = requests.get(robots_url)
 
             if response.status_code == 200:
-                sitemap_url = None  # Initialize sitemap URL
+                sitemap_url = None  
                 lines = response.text.split('\n')
 
-                # Find the line containing 'Sitemap:'
                 for line in lines:
                     if line.strip().startswith('Sitemap:'):
                         sitemap_url = line.split(':', 1)[1].strip()
@@ -64,11 +62,10 @@ class WordPressScanner:
 
                 if sitemap_url:
                     if sitemap_url not in processed_urls:
-                        processed_urls.add(sitemap_url)  # Add the sitemap URL to processed URLs
+                        processed_urls.add(sitemap_url)
                         response = requests.get(sitemap_url)
 
                         if response.status_code == 200:
-                            # Parse the sitemap as XML using lxml
                             sitemap_xml = etree.fromstring(response.content)
                             loc_elements = sitemap_xml.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
                             urls = [loc.text for loc in loc_elements]
@@ -77,20 +74,19 @@ class WordPressScanner:
 
                             for sitemap_url in urls:
                                 if sitemap_url not in processed_urls:
-                                    processed_urls.add(sitemap_url)  # Add the URL to processed URLs
+                                    processed_urls.add(sitemap_url)
                                     response = requests.get(sitemap_url)
 
                                     if response.status_code == 200:
                                         page_content = response.text
-                                        page_soup = BeautifulSoup(page_content, features="lxml")  # Parse as XML
+                                        page_soup = BeautifulSoup(page_content, features="lxml")
                                         forms = page_soup.find_all("form")
 
                                         for form in forms:
                                             if form.find("input", {"type": "text"}):
                                                 forms_with_input.append(sitemap_url)
-                                                break  # No need to check other forms on the same page
+                                                break  
 
-                            # Recursively process XML files
                             for sitemap_url in urls:
                                 if sitemap_url.endswith(".xml"):
                                     self.crawl_sitemap_for_forms(sitemap_url, processed_urls)
@@ -110,8 +106,7 @@ class WordPressScanner:
         return []
 
     def get_website_content(self):
-        # Fetch the HTML content of the website using requests
-        response = requests.get(self.url, verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url, verify=True)
         if "200" in str(response):
             return response.text
 
@@ -119,18 +114,15 @@ class WordPressScanner:
         html_content = website_content
         soup = BeautifulSoup(html_content, 'lxml')
 
-        # Look for meta tags related to plugins
         meta_tags = soup.find_all('meta', attrs={'name': 'wp-plugin'})
         if meta_tags:
             for tag in meta_tags:
                 print("Found WordPress plugin meta tag:", tag['content'])
 
-        # Search for comments in HTML
         comments = soup.find_all(string=lambda text: isinstance(text, Comment))
         for comment in comments:
             print("Found WordPress plugin comment:", comment)
 
-        # Analyze script and link tags
         script_tags = soup.find_all(['script', 'link'])
         for tag in script_tags:
             if 'wp-content/plugins/' in tag.get('src', '') or 'wp-content/themes/' in tag.get('href', ''):
@@ -153,18 +145,18 @@ class WordPressScanner:
 
     def check_url(self):
         print(f"URL     : {self.url}")
-        response = requests.get(self.url, verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url, verify=True)
         if "200" in str(response):
             self.version = self.extract_version(response.text)
             print(f"Version : {self.version}")
 
     def check_readme(self):
-        response = requests.get(self.url + '/readme.html', verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url + '/readme.html', verify=True)
         if "200" in str(response):
             print(f"Readme file found at {self.url}readme.html")
 
     def check_debug_log(self):
-        response = requests.get(f"{self.url}/debug.log", verify=True)  # Verify the SSL certificate
+        response = requests.get(f"{self.url}/debug.log", verify=True)
         if "200" in str(response) and "404" not in response.text:
             print(f"Debug log file found at {self.url}debug.log")
 
@@ -211,7 +203,7 @@ class WordPressScanner:
         dir_name    = ["Uploads", "Plugins", "Themes", "Includes", "Admin"]
 
         for directory, name in zip(directories, dir_name):
-            response = requests.get(self.url + '/' + directory, verify=True)  # Verify the SSL certificate
+            response = requests.get(self.url + '/' + directory, verify=True)
             if "Index of" in response.text:
                 self.files.add(directory)
                 print(f"{name} directory has directory listing enabled at {self.url + directory}")
@@ -224,7 +216,7 @@ class WordPressScanner:
 
 
     def check_robots_text(self):
-        response = requests.get(f"{self.url}/robots.txt", verify=True)  # Verify the SSL certificate
+        response = requests.get(f"{self.url}/robots.txt", verify=True)
         
         if response.status_code == 200:
             self.files.add("robots.txt")
@@ -236,7 +228,7 @@ class WordPressScanner:
                     print(f"Interesting entry from robots.txt: {l}")
 
     def check_full_path_disclosure(self):
-        response = requests.get(self.url + "/wp-includes/rss-functions.php", verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url + "/wp-includes/rss-functions.php", verify=True)
         text = response.text
         regex = re.compile("Fatal error:.*? in (.*?) on", re.S)
         matches = regex.findall(text)
@@ -249,7 +241,7 @@ class WordPressScanner:
             print(f"Exposed Path: {exposed_path}")
     
     def enum_wordpress_users(self):
-        response = requests.get(self.url + "/wp-json/wp/v2/users", headers={"User-Agent": self.user_agent}, verify=True)  # Verify the SSL certificate
+        response = requests.get(self.url + "/wp-json/wp/v2/users", headers={"User-Agent": self.user_agent}, verify=True)
 
         if "200" in str(response):
             print("Enumerating WordPress users")
@@ -260,7 +252,7 @@ class WordPressScanner:
 
     def extract_version(self):
         try:
-            response = requests.get(self.url, verify=True)  # Verify the SSL certificate
+            response = requests.get(self.url, verify=True)
         
             if response.status_code == 200:
                 match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response.text)
