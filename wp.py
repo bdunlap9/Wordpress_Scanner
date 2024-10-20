@@ -187,35 +187,66 @@ class AsyncWordPressScanner:
             print(f"Failed to fetch robots.txt from {robots_url}.")
 
         return []
+    
+async def check_plugins(self, session):
+    plugin_directory_url = f"{self.url}/wp-content/plugins/"
+    rest_api_plugins_url = f"{self.url}/wp-json/plugins/v1/all"
+    known_plugins = [
+        'wordpress-seo/wp-seo.php',  # Yoast SEO
+        'akismet/akismet.php',        # Akismet
+        'woocommerce/woocommerce.php', # WooCommerce
+    ]
 
-    async def scan(self, checks):
-        async with aiohttp.ClientSession() as session:
-            tasks = []
-            if checks.get('wordpress'):
-                tasks.append(self.check_wordpress(session))
-            if checks.get('url'):
-                tasks.append(self.check_url(session))
-            if checks.get('readme'):
-                tasks.append(self.check_readme(session))
-            if checks.get('debug_log'):
-                tasks.append(self.check_debug_log(session))
-            if checks.get('backup_file'):
-                tasks.append(self.check_backup_file(session))
-            if checks.get('directory_listing'):
-                tasks.append(self.check_directory_listing(session))
-            if checks.get('xml_rpc'):
-                tasks.append(self.is_xml_rpc(session))
-            if checks.get('robots_text'):
-                tasks.append(self.check_robots_text(session))
-            if checks.get('full_path_disclosure'):
-                tasks.append(self.check_full_path_disclosure(session))
-            if checks.get('enum_users'):
-                tasks.append(self.enum_wordpress_users(session))
-            if checks.get('sitemap_forms'):
-                forms = await self.crawl_sitemap_for_forms(session)
-                print("Forms with input fields found at:", forms)
+    response = await self.fetch(session, plugin_directory_url)
+    if response and "Index of" in response:
+        print(f"Plugin directory listing found at {plugin_directory_url}")
 
-            await asyncio.gather(*tasks)
+    response = await self.fetch(session, rest_api_plugins_url)
+    if response:
+        try:
+            plugins = json.loads(response)
+            print("Installed Plugins from REST API:")
+            for plugin in plugins:
+                print(f"{plugin['name']} - {plugin['version']}")
+        except json.JSONDecodeError:
+            print("Failed to decode JSON response from the REST API.")
+
+    for plugin in known_plugins:
+        plugin_url = f"{self.url}/wp-content/plugins/{plugin}"
+        response = await self.fetch(session, plugin_url)
+        if response:
+            print(f"Known plugin found: {plugin}")
+
+async def scan(self, checks):
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        if checks.get('wordpress'):
+            tasks.append(self.check_wordpress(session))
+        if checks.get('url'):
+            tasks.append(self.check_url(session))
+        if checks.get('readme'):
+            tasks.append(self.check_readme(session))
+        if checks.get('debug_log'):
+            tasks.append(self.check_debug_log(session))
+        if checks.get('backup_file'):
+            tasks.append(self.check_backup_file(session))
+        if checks.get('directory_listing'):
+            tasks.append(self.check_directory_listing(session))
+        if checks.get('xml_rpc'):
+            tasks.append(self.is_xml_rpc(session))
+        if checks.get('robots_text'):
+            tasks.append(self.check_robots_text(session))
+        if checks.get('full_path_disclosure'):
+            tasks.append(self.check_full_path_disclosure(session))
+        if checks.get('enum_users'):
+            tasks.append(self.enum_wordpress_users(session))
+        if checks.get('sitemap_forms'):
+            forms = await self.crawl_sitemap_for_forms(session)
+            print("Forms with input fields found at:", forms)
+        if checks.get('check_plugins'):
+            await self.check_plugins(session)
+
+        await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
@@ -232,6 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('--full-path-disclosure', action='store_true', help='Check for full path disclosure')
     parser.add_argument('--enum-users', action='store_true', help='Enumerate WordPress users')
     parser.add_argument('--sitemap-forms', action='store_true', help='Check for forms in the sitemap')
+    parser.add_argument('--check-plugins', action='store_true', help='Check for installed plugins')
 
     args = parser.parse_args()
 
