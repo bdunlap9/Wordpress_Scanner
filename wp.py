@@ -1,166 +1,51 @@
-import requests, re, json, argparse
-
+import re, json, argparse, asyncio, aiohttp
 from bs4 import BeautifulSoup
-from bs4.element import Comment
 from lxml import etree
 
-class WordPressScanner:
-    def __init__(self, url, user_agent, nocheck):
+class AsyncWordPressScanner:
+
+    def __init__(self, url, user_agent):
         self.url = url
         self.user_agent = user_agent
-        self.nocheck = nocheck
         self.files = set()
+        self.version = None
+        self.users = []
 
-    def scan(self):
-        self.check_wordpress()
-        self.check_url()
-        self.check_readme()
-        self.check_debug_log()
-        self.check_backup_file()
-        self.check_directory_listing()
-        self.check_robots_text()
-        self.check_full_path_disclosure()
-        website_content = self.get_website_content() 
-        self.detect_wordpress_plugins(website_content)  
-        self.enum_wordpress_users()
-        self.is_xml_rpc()
-        self.is_debug_log()
-        
-        sitemap_url = self.url 
-        processed_urls = set()
-        forms_with_input = self.crawl_sitemap_for_forms(sitemap_url, processed_urls)
-
-        if forms_with_input:
-            print("URLs with input forms:")
-            for url in forms_with_input:
-                print(f'    {url}')
-        else:
-            print("No URLs with input forms found.")
-
-    def check_wordpress(self):
-        response = requests.get(self.url, verify=True) 
-        if self.nocheck and not "wp-" in response.text:
-            print("Not a WordPress site.")
-            exit()
-
-    def crawl_sitemap_for_forms(self, url, processed_urls=None):
-        if processed_urls is None:
-            processed_urls = set()
-
+    async def fetch(self, session, url):
         try:
-            robots_url = self.url + '/robots.txt'
-            response = requests.get(robots_url)
-
-            if response.status_code == 200:
-                sitemap_url = None  
-                lines = response.text.split('\n')
-
-                for line in lines:
-                    if line.strip().startswith('Sitemap:'):
-                        sitemap_url = line.split(':', 1)[1].strip()
-                        break
-
-                if sitemap_url:
-                    if sitemap_url not in processed_urls:
-                        processed_urls.add(sitemap_url)
-                        response = requests.get(sitemap_url)
-
-                        if response.status_code == 200:
-                            sitemap_xml = etree.fromstring(response.content)
-                            loc_elements = sitemap_xml.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
-                            urls = [loc.text for loc in loc_elements]
-
-                            forms_with_input = []
-
-                            for sitemap_url in urls:
-                                if sitemap_url not in processed_urls:
-                                    processed_urls.add(sitemap_url)
-                                    response = requests.get(sitemap_url)
-
-                                    if response.status_code == 200:
-                                        page_content = response.text
-                                        page_soup = BeautifulSoup(page_content, features="lxml")
-                                        forms = page_soup.find_all("form")
-
-                                        for form in forms:
-                                            if form.find("input", {"type": "text"}):
-                                                forms_with_input.append(sitemap_url)
-                                                break  
-
-                            for sitemap_url in urls:
-                                if sitemap_url.endswith(".xml"):
-                                    self.crawl_sitemap_for_forms(sitemap_url, processed_urls)
-
-                            return forms_with_input
-                        else:
-                            print(f"Failed to fetch sitemap URL {sitemap_url}. Status code: {response.status_code}")
-                    else:
-                        print(f"Sitemap URL {sitemap_url} has already been processed.")
+            async with session.get(url, headers={"User-Agent": self.user_agent}) as response:
+                if response.status == 200:
+                    return await response.text()
                 else:
-                    print("No sitemap URL found in robots.txt.")
-            else:
-                print(f"Failed to fetch robots.txt from {robots_url}. Status code: {response.status_code}")
+                    print(f"Failed to fetch {url}: Status {response.status}")
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(f'Error fetching {url}: {e}')
+        return None
 
-        return []
+    async def check_wordpress(self, session):
+        response = await self.fetch(session, self.url)
+        if response and "wp-" not in response:
+            print("Not a WordPress site.")
+            return False
+        return True
 
-    def get_website_content(self):
-        response = requests.get(self.url, verify=True)
-        if "200" in str(response):
-            return response.text
+    async def check_url(self, session):
+        response = await self.fetch(session, self.url)
+        if response:
+            self.version = await self.extract_version(response)
+            print(f"Version: {self.version}")
 
-    def detect_wordpress_plugins(self, website_content):
-        html_content = website_content
-        soup = BeautifulSoup(html_content, 'lxml')
+    async def check_readme(self, session):
+        response = await self.fetch(session, f'{self.url}/readme.html')
+        if response:
+            print(f"Readme file found at {self.url}/readme.html")
 
-        meta_tags = soup.find_all('meta', attrs={'name': 'wp-plugin'})
-        if meta_tags:
-            for tag in meta_tags:
-                print("Found WordPress plugin meta tag:", tag['content'])
+    async def check_debug_log(self, session):
+        response = await self.fetch(session, f"{self.url}/debug.log")
+        if response and "404" not in response:
+            print(f"Debug log file found at {self.url}/debug.log")
 
-        comments = soup.find_all(string=lambda text: isinstance(text, Comment))
-        for comment in comments:
-            print("Found WordPress plugin comment:", comment)
-
-        script_tags = soup.find_all(['script', 'link'])
-        for tag in script_tags:
-            if 'wp-content/plugins/' in tag.get('src', '') or 'wp-content/themes/' in tag.get('href', ''):
-                tag_type = "Script" if tag.name == 'script' else "Stylesheet"
-                tag_url = tag.get('src', '') if tag.name == 'script' else tag.get('href', '')
-                print(f"Possible plugin-related {tag_type} found:")
-                print(f"    URL: {tag_url}")
-                print(f"    Type: {tag_type}")
-
-    def is_debug_log(self):
-        debug_log_url = self.url + '/debug.log'
-        response = requests.get(debug_log_url, headers={"User-Agent": self.user_agent}, verify=True)
-    
-        if response.status_code == 200:
-            if "404" not in response.text:
-                self.files.add('debug.log')
-                print(f"Debug log file found: {debug_log_url}")
-        else:
-            print(f"Debug log file not found at: {debug_log_url}")
-
-    def check_url(self):
-        print(f"URL     : {self.url}")
-        response = requests.get(self.url, verify=True)
-        if "200" in str(response):
-            self.version = self.extract_version(response.text)
-            print(f"Version : {self.version}")
-
-    def check_readme(self):
-        response = requests.get(self.url + '/readme.html', verify=True)
-        if "200" in str(response):
-            print(f"Readme file found at {self.url}readme.html")
-
-    def check_debug_log(self):
-        response = requests.get(f"{self.url}/debug.log", verify=True)
-        if "200" in str(response) and "404" not in response.text:
-            print(f"Debug log file found at {self.url}debug.log")
-
-    def check_backup_file(self):
+    async def check_backup_file(self, session):
         backup_files = [
             'wp-config.php~', 'wp-config.php.save', '.wp-config.php.bck', 
             'wp-config.php.bck', '.wp-config.php.swp', 'wp-config.php.swp', 
@@ -190,89 +75,165 @@ class WordPressScanner:
             'wp-config.php.DAT', 'wp-config.TAR.GZ', 'wp-config.php.TAR.GZ', 
             'wp-config.BACK', 'wp-config.php.BACK', 'wp-config.TEST', 
             'wp-config.php.TEST', "wp-config.php._INC", "wp-config_INC"
-        ]
+        ]              
 
         for backup_file in backup_files:
-            response = requests.get(self.url + '/' + backup_file, headers={"User-Agent": self.user_agent}, verify=True)
-            
-            if response.status_code == 200:
+            response = await self.fetch(session, self.url + '/' + backup_file)
+            if response:
                 print(f"A backup file has been found at {self.url + backup_file}")
 
-    def check_directory_listing(self):
-        directories = ["wp-content/uploads/", "wp-content/plugins/", "wp-content/themes/","wp-includes/", "wp-admin/"]
-        dir_name    = ["Uploads", "Plugins", "Themes", "Includes", "Admin"]
+    async def check_directory_listing(self, session):
+        directories = ["wp-content/uploads/", "wp-content/plugins/", "wp-content/themes/", "wp-includes/", "wp-admin/"]
+        dir_names = ["Uploads", "Plugins", "Themes", "Includes", "Admin"]
 
-        for directory, name in zip(directories, dir_name):
-            response = requests.get(self.url + '/' + directory, verify=True)
-            if "Index of" in response.text:
+        for directory, name in zip(directories, dir_names):
+            response = await self.fetch(session, self.url + '/' + directory)
+            if response and "Index of" in response:
                 self.files.add(directory)
                 print(f"{name} directory has directory listing enabled at {self.url + directory}")
 
-    def is_xml_rpc(self):
-        r = requests.get(f"{self.url}/xmlrpc.php", headers={"User-Agent": self.user_agent}, verify=True)
-        if r.status_code == 405:
-            self.files.add("xmlrpc.php")
-            print(f"XML-RPC Interface available under: {self.url}xmlrpc.php")
+    async def is_xml_rpc(self, session):
+        response = await self.fetch(session, f"{self.url}/xmlrpc.php")
+        if response:
+            print(f"XML-RPC Interface available under: {self.url}/xmlrpc.php")
 
-
-    def check_robots_text(self):
-        response = requests.get(f"{self.url}/robots.txt", verify=True)
-        
-        if response.status_code == 200:
-            self.files.add("robots.txt")
+    async def check_robots_text(self, session):
+        response = await self.fetch(session, f"{self.url}/robots.txt")
+        if response:
             print(f"robots.txt available under: {self.url}/robots.txt")
-            lines = response.text.split('\n')
-        
+            lines = response.split('\n')
             for l in lines:
                 if "Disallow:" in l:
                     print(f"Interesting entry from robots.txt: {l}")
 
-    def check_full_path_disclosure(self):
-        response = requests.get(self.url + "/wp-includes/rss-functions.php", verify=True)
-        text = response.text
-        regex = re.compile("Fatal error:.*? in (.*?) on", re.S)
-        matches = regex.findall(text)
+    async def check_full_path_disclosure(self, session):
+        response = await self.fetch(session, self.url + "/wp-includes/rss-functions.php")
+        if response:
+            regex = re.compile("Fatal error:.*? in (.*?) on", re.S)
+            matches = regex.findall(response)
 
-        if matches:
-            # Extract the exposed path from the match
-            exposed_path = matches[0].replace('\n', '').strip()
+            if matches:
+                exposed_path = matches[0].replace('\n', '').strip()
+                print(f"Full Path Disclosure (FPD) in {self.url + 'wp-includes/rss-functions.php'}")
+                print(f"Exposed Path: {exposed_path}")
 
-            print(f"Full Path Disclosure (FPD) in {self.url + 'wp-includes/rss-functions.php'}")
-            print(f"Exposed Path: {exposed_path}")
-    
-    def enum_wordpress_users(self):
-        response = requests.get(self.url + "/wp-json/wp/v2/users", headers={"User-Agent": self.user_agent}, verify=True)
-
-        if "200" in str(response):
+    async def enum_wordpress_users(self, session):
+        response = await self.fetch(session, f"{self.url}/wp-json/wp/v2/users")
+        if response:
             print("Enumerating WordPress users")
-            users = json.loads(response.text)
+            users = json.loads(response)
             for user in users:
                 print(f"Identified the following user: {user['id']}, {user['name']}, {user['slug']}")
             self.users = users
 
-    def extract_version(self):
-        try:
-            response = requests.get(self.url, verify=True)
-        
-            if response.status_code == 200:
-                match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response.text)
-                
-                if match:
-                    return match.group(1)
+    async def extract_version(self, response):
+        match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response)
+        if match:
+            return match.group(1)
+        print("WordPress version not found in the response.")
+
+    async def crawl_sitemap_for_forms(self, session, processed_urls=None):
+        if processed_urls is None:
+            processed_urls = set()
+
+        robots_url = self.url + '/robots.txt'
+        response = await self.fetch(session, robots_url)
+
+        if response:
+            sitemap_url = None  
+            lines = response.split('\n')
+
+            for line in lines:
+                if line.strip().startswith('Sitemap:'):
+                    sitemap_url = line.split(':', 1)[1].strip()
+                    break
+
+            if sitemap_url and sitemap_url not in processed_urls:
+                processed_urls.add(sitemap_url)
+                response = await self.fetch(session, sitemap_url)
+
+                if response:
+                    sitemap_xml = etree.fromstring(response.encode('utf-8'))
+                    loc_elements = sitemap_xml.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+                    urls = [loc.text for loc in loc_elements]
+
+                    forms_with_input = []
+
+                    for sitemap_url in urls:
+                        if sitemap_url not in processed_urls:
+                            processed_urls.add(sitemap_url)
+                            response = await self.fetch(session, sitemap_url)
+
+                            if response:
+                                page_soup = BeautifulSoup(response, features="lxml")
+                                forms = page_soup.find_all("form")
+
+                                for form in forms:
+                                    if form.find("input", {"type": "text"}):
+                                        forms_with_input.append(sitemap_url)
+                                        break  
+
+                    for sitemap_url in urls:
+                        if sitemap_url.endswith(".xml"):
+                            nested_forms = await self.crawl_sitemap_for_forms(session, processed_urls)
+                            forms_with_input.extend(nested_forms)
+
+                    return forms_with_input
                 else:
-                    print("WordPress version not found in the response.")
+                    print(f"Failed to fetch sitemap URL {sitemap_url}.")
             else:
-                print(f"Failed to fetch content from {self.url}. Status code: {response.status_code}")
-        except Exception as e:
-            print(f"An error occurred while extracting WordPress version: {str(e}")
+                print(f"Sitemap URL {sitemap_url} has already been processed or is not found.")
+        else:
+            print(f"Failed to fetch robots.txt from {robots_url}.")
+
+        return []
+
+    async def scan(self, checks):
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            if checks.get('wordpress'):
+                tasks.append(self.check_wordpress(session))
+            if checks.get('url'):
+                tasks.append(self.check_url(session))
+            if checks.get('readme'):
+                tasks.append(self.check_readme(session))
+            if checks.get('debug_log'):
+                tasks.append(self.check_debug_log(session))
+            if checks.get('backup_file'):
+                tasks.append(self.check_backup_file(session))
+            if checks.get('directory_listing'):
+                tasks.append(self.check_directory_listing(session))
+            if checks.get('xml_rpc'):
+                tasks.append(self.is_xml_rpc(session))
+            if checks.get('robots_text'):
+                tasks.append(self.check_robots_text(session))
+            if checks.get('full_path_disclosure'):
+                tasks.append(self.check_full_path_disclosure(session))
+            if checks.get('enum_users'):
+                tasks.append(self.enum_wordpress_users(session))
+            if checks.get('sitemap_forms'):
+                forms = await self.crawl_sitemap_for_forms(session)
+                print("Forms with input fields found at:", forms)
+
+            await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
     parser.add_argument('url', help='The URL of the WordPress site to scan')
-    parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only !', help='User agent to use')
-    parser.add_argument('--nocheck', action='store_true', help='Skip WordPress check')
+    parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only!', help='User agent to use')
+    parser.add_argument('--wordpress', action='store_true', help='Check if site is a WordPress site')
+    parser.add_argument('--url', action='store_true', help='Check the URL')
+    parser.add_argument('--readme', action='store_true', help='Check for readme file')
+    parser.add_argument('--debug-log', action='store_true', help='Check for debug log')
+    parser.add_argument('--backup-file', action='store_true', help='Check for backup files')
+    parser.add_argument('--directory-listing', action='store_true', help='Check for directory listing')
+    parser.add_argument('--xml-rpc', action='store_true', help='Check for XML-RPC interface')
+    parser.add_argument('--robots-text', action='store_true', help='Check for robots.txt')
+    parser.add_argument('--full-path-disclosure', action='store_true', help='Check for full path disclosure')
+    parser.add_argument('--enum-users', action='store_true', help='Enumerate WordPress users')
+    parser.add_argument('--sitemap-forms', action='store_true', help='Check for forms in the sitemap')
 
     args = parser.parse_args()
-    
-    scanner = WordPressScanner(args.url, args.user_agent, args.nocheck)
-    scanner.scan()
+
+    scanner = AsyncWordPressScanner(args.url, args.user_agent)
+    asyncio.run(scanner.scan(vars(args)))
