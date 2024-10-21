@@ -14,14 +14,15 @@ class AsyncWordPressScanner:
     async def fetch(self, session, url):
         try:
             async with session.get(url, headers={'User-Agent': self.user_agent}) as response:
+                print(f"Fetching {url} - Status: {response.status}")  # Log status
                 if response.status == 200:
                     return await response.text()
                 else:
                     print(f"Failed to fetch {url}: Status {response.status}")
         except Exception as e:
-            #print(f'Error fetching {url}: {e}')
-            print()
+            print(f'Error fetching {url}: {e}')
         return None
+
 
     async def check_wordpress(self, session):
         wordpress_files = [
@@ -56,9 +57,18 @@ class AsyncWordPressScanner:
             print(f'Readme file found at {self.url}/readme.html')
 
     async def check_debug_log(self, session):
-        response = await self.fetch(session, f'{self.url}/debug.log')
-        if response and '404' not in response:
-            print(f'Debug log file found at {self.url}/debug.log')
+        try:
+            response = await self.fetch(session, f'{self.url}/debug.log')
+            if response is not None:
+                if '404' in response:
+                    print(f'No debug log file found at {self.url}/debug.log (404 error)')
+                else:
+                    print(f'Debug log file found at {self.url}/debug.log')
+            else:
+                print(f'Failed to fetch {self.url}/debug.log: No response received.')
+        except Exception as e:
+            print(f'Error checking debug log: {e}')
+
 
     async def check_backup_file(self, session):
         #'*.bak', '*.backup', '*.old', '*.orig', '*.swp', 
@@ -100,6 +110,8 @@ class AsyncWordPressScanner:
             response = await self.fetch(session, f"{self.url}/{backup_file}")
             if response:
                 print(f'A backup file has been found at {self.url}/{backup_file}')
+            else:
+                print(f'No backup files found for {self.url}')
 
     async def check_directory_listing(self, session):
         directories = ['wp-content/uploads/', 'wp-content/plugins/', 'wp-content/themes/', 'wp-includes/', 'wp-admin/']
@@ -112,9 +124,25 @@ class AsyncWordPressScanner:
                 print(f'{name} directory has directory listing enabled at {self.url + "/" + directory}')
 
     async def is_xml_rpc(self, session):
-        response = await self.fetch(session, f'{self.url}/xmlrpc.php')
-        if response:
-            print(f'XML-RPC Interface available under: {self.url}/xmlrpc.php')
+        print(f'\nChecking xmlrpc.php on {self.url}')
+        url = f'{self.url}/xmlrpc.php'
+        response = await self.fetch(session, url)
+        
+        if response is not None:
+            print(f'XML-RPC Interface available under: {url}')
+        else:
+            print(f'Failed to fetch XML-RPC interface at: {url}')
+
+        try:
+            async with session.get(url, headers={'User-Agent': self.user_agent}) as resp:
+                if resp.status == 200:
+                    print(f'XML-RPC Interface accessible at: {url}')
+                elif resp.status == 404:
+                    print('XML-RPC interface is not available (404 error).')
+                else:
+                    print(f'XML-RPC interface inaccessible (Status: {resp.status}).')
+        except Exception as e:
+            print(f'Error checking XML-RPC status: {e}')
 
     async def check_robots_text(self, session):
         response = await self.fetch(session, f'{self.url}/robots.txt')
@@ -264,6 +292,7 @@ class AsyncWordPressScanner:
             if checks.get('check-plugins'):
                 await self.check_plugins(session)
 
+            print(f'Running tasks: {tasks}')
             await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
