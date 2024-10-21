@@ -21,7 +21,6 @@ class AsyncWordPressScanner:
                     print(f"{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}")
                     return await response.text()
                 elif response.status == 404:
-                    # Don't print anything for 404 errors
                     return None
                 else:
                     print(f"{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}")
@@ -127,68 +126,94 @@ class AsyncWordPressScanner:
         directories = ['wp-content/uploads/', 'wp-content/plugins/', 'wp-content/themes/', 'wp-includes/', 'wp-admin/']
         dir_names = ['Uploads', 'Plugins', 'Themes', 'Includes', 'Admin']
 
+        print(f"{Fore.GREEN}\nChecking for directory listings...{Style.RESET_ALL}")
+        
         for directory, name in zip(directories, dir_names):
             response = await self.fetch(session, self.url + '/' + directory)
             if response and 'Index of' in response:
                 self.files.add(directory)
-                print(f'{name} directory has directory listing enabled at {self.url + "/" + directory}')
+                print(f'{Fore.GREEN}{name} directory has directory listing enabled at: {self.url + "/" + directory}{Style.RESET_ALL}')
+            else:
+                print(f'{Fore.YELLOW}{name} directory does not have directory listing enabled at: {self.url + "/" + directory}{Style.RESET_ALL}')
+
 
     async def is_xml_rpc(self, session):
-        print(f'\nChecking xmlrpc.php on {self.url}')
+        print(f"{Fore.GREEN}\nChecking XML-RPC on {self.url}...{Style.RESET_ALL}")
         url = f'{self.url}/xmlrpc.php'
         response = await self.fetch(session, url)
         
         if response is not None:
-            print(f'XML-RPC Interface available under: {url}')
+            print(f'{Fore.GREEN}XML-RPC Interface available under: {url}{Style.RESET_ALL}')
         else:
-            print(f'Failed to fetch XML-RPC interface at: {url}')
+            print(f'{Fore.RED}Failed to fetch XML-RPC interface at: {url}{Style.RESET_ALL}')
 
         try:
             async with session.get(url, headers={'User-Agent': self.user_agent}) as resp:
                 if resp.status == 200:
-                    print(f'XML-RPC Interface accessible at: {url}')
+                    print(f'{Fore.GREEN}XML-RPC Interface accessible at: {url}{Style.RESET_ALL}')
                 elif resp.status == 404:
-                    print('XML-RPC interface is not available (404 error).')
+                    print(f'{Fore.RED}XML-RPC interface is not available (404 error).{Style.RESET_ALL}')
                 else:
-                    print(f'XML-RPC interface inaccessible (Status: {resp.status}).')
+                    print(f'{Fore.YELLOW}XML-RPC interface inaccessible (Status: {resp.status}).{Style.RESET_ALL}')
         except Exception as e:
-            print(f'Error checking XML-RPC status: {e}')
+            print(f'{Fore.RED}Error checking XML-RPC status: {e}{Style.RESET_ALL}')
 
     async def check_robots_text(self, session):
+        print(f"{Fore.GREEN}\nChecking robots.txt on {self.url}...{Style.RESET_ALL}")
         response = await self.fetch(session, f'{self.url}/robots.txt')
+        
         if response:
-            print(f'robots.txt available under: {self.url}/robots.txt')
+            print(f'{Fore.GREEN}robots.txt available under: {self.url}/robots.txt{Style.RESET_ALL}')
             lines = response.split('\n')
             for l in lines:
                 if 'Disallow:' in l:
-                    print(f'Interesting entry from robots.txt: {l}')
+                    print(f'{Fore.YELLOW}Interesting entry from robots.txt: {l}{Style.RESET_ALL}')
+        else:
+            print(f'{Fore.RED}Failed to fetch robots.txt.{Style.RESET_ALL}')
 
     async def check_full_path_disclosure(self, session):
+        print(f"{Fore.GREEN}\nChecking for Full Path Disclosure on {self.url}...{Style.RESET_ALL}")
         response = await self.fetch(session, self.url + '/wp-includes/rss-functions.php')
+        
         if response:
             regex = re.compile('Fatal error:.*? in (.*?) on', re.S)
             matches = regex.findall(response)
 
             if matches:
                 exposed_path = matches[0].replace('\n', '').strip()
-                print(f'Full Path Disclosure (FPD) in {self.url + 'wp-includes/rss-functions.php'}')
-                print(f'Exposed Path: {exposed_path}')
+                print(f'{Fore.RED}Full Path Disclosure (FPD) detected in: {self.url + "/wp-includes/rss-functions.php"}{Style.RESET_ALL}')
+                print(f'{Fore.RED}Exposed Path: {exposed_path}{Style.RESET_ALL}')
+            else:
+                print(f'{Fore.YELLOW}No Full Path Disclosure detected.{Style.RESET_ALL}')
+        else:
+            print(f'{Fore.RED}Failed to fetch rss-functions.php for FPD check.{Style.RESET_ALL}')
 
     async def enum_wordpress_users(self, session):
+        print(f"{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}")
         response = await self.fetch(session, f'{self.url}/wp-json/wp/v2/users')
+        
         if response:
-            print('Enumerating WordPress users')
             users = json.loads(response)
-            for user in users:
-                print(f'Identified the following user: {user["id"]}, {user["name"]}, {user["slug"]}')
-            self.users = users
-
+            if users:
+                for user in users:
+                    print(f'{Fore.GREEN}Identified user: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
+                self.users = users
+            else:
+                print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')
+        else:
+            print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
 
     async def extract_version(self, response):
+        print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
         match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response)
+        
         if match:
-            return match.group(1)
-        print('WordPress version not found in the response.')
+            version = match.group(1)
+            print(f'{Fore.GREEN}WordPress version found: {version}{Style.RESET_ALL}')
+            return version
+        
+        print(f'{Fore.RED}WordPress version not found in the response.{Style.RESET_ALL}')
+        return None
 
     async def crawl_sitemap_for_forms(self, session, processed_urls=None):
         if processed_urls is None:
@@ -247,33 +272,51 @@ class AsyncWordPressScanner:
         return []
     
     async def check_plugins(self, session):
+        print(f"{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}")
         plugin_directory_url = f'{self.url}/wp-content/plugins/'
         rest_api_plugins_url = f'{self.url}/wp-json/plugins/v1/all'
         known_plugins = [
-            'wordpress-seo/wp-seo.php',  # Yoast SEO
-            'akismet/akismet.php',        # Akismet
-            'woocommerce/woocommerce.php', # WooCommerce
+            'wordpress-seo/wp-seo.php',          # Yoast SEO
+            'akismet/akismet.php',                # Akismet
+            'woocommerce/woocommerce.php',        # WooCommerce
+            'elementor/elementor.php',            # Elementor Page Builder
+            'wpforms-lite/wpforms.php',           # WPForms
+            'contact-form-7/wp-contact-form-7.php',  # Contact Form 7
+            'jetpack/jetpack.php',                # Jetpack
+            'wp-super-cache/wp-cache.php',        # WP Super Cache
+            'wp-rocket/wp-rocket.php',            # WP Rocket
+            'gravityforms/gravityforms.php',     # Gravity Forms
+            'bbpress/bbpress.php',                # bbPress
+            'wpml-multilingual-cms/wpml.php',    # WPML
+            'yoast-seo/yoast-seo.php',           # Yoast SEO Premium
+            'nextgen-gallery/nggallery.php',      # NextGEN Gallery
+            'wordfence/wordfence.php',            # Wordfence Security
+            'duplicate-post/duplicate-post.php',  # Duplicate Post
+            'updraftplus/updraftplus.php',        # UpdraftPlus
+            'redirection/redirection.php',        # Redirection
+            'all-in-one-seo-pack/all_in_one_seo_pack.php',  # All in One SEO Pack
         ]
+
 
         response = await self.fetch(session, plugin_directory_url)
         if response and "Index of" in response:
-            print(f'Plugin directory listing found at {plugin_directory_url}')
+            print(f'{Fore.GREEN}Plugin directory listing found at: {plugin_directory_url}{Style.RESET_ALL}')
 
         response = await self.fetch(session, rest_api_plugins_url)
         if response:
             try:
                 plugins = json.loads(response)
-                print('Installed Plugins from REST API:')
+                print(f'{Fore.GREEN}Installed Plugins from REST API:{Style.RESET_ALL}')
                 for plugin in plugins:
-                    print(f'{plugin['name']} - {plugin['version']}')
+                    print(f'{Fore.GREEN}{plugin["name"]} - Version: {plugin["version"]}{Style.RESET_ALL}')
             except json.JSONDecodeError:
-                print('Failed to decode JSON response from the REST API.')
+                print(f'{Fore.RED}Failed to decode JSON response from the REST API.{Style.RESET_ALL}')
 
         for plugin in known_plugins:
             plugin_url = f'{self.url}/wp-content/plugins/{plugin}'
             response = await self.fetch(session, plugin_url)
             if response:
-                print(f'Known plugin found: {plugin}')
+                print(f'{Fore.GREEN}Known plugin found: {plugin}{Style.RESET_ALL}')
 
     async def scan(self, checks):
         async with aiohttp.ClientSession() as session:
