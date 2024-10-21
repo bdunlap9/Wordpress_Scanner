@@ -5,7 +5,7 @@ from lxml import etree
 class AsyncWordPressScanner:
 
     def __init__(self, url, user_agent):
-        self.url = url
+        self.url = str(url)
         self.user_agent = user_agent
         self.files = set()
         self.version = None
@@ -19,21 +19,36 @@ class AsyncWordPressScanner:
                 else:
                     print(f"Failed to fetch {url}: Status {response.status}")
         except Exception as e:
-            print(f'Error fetching {url}: {e}')
+            #print(f'Error fetching {url}: {e}')
+            print()
         return None
 
     async def check_wordpress(self, session):
-        response = await self.fetch(session, self.url)
-        if response and 'wp-' not in response:
+        wordpress_files = [
+            'wp-login.php',
+            'wp-admin/',
+            'wp-includes/',
+            'wp-content/',
+            'wp-json/wp/v2/'
+        ]
+
+        for path in wordpress_files:
+            url = f"{self.url}/{path}"
+            response = await self.fetch(session, url)
+            if response:
+                print(f'WordPress detected via: {url}')
+                break
+        else:
             print('Not a WordPress site.')
             return False
-        return True
 
-    async def check_url(self, session):
         response = await self.fetch(session, self.url)
-        if response:
-            self.version = await self.extract_version(response)
-            print(f'Version: {self.version}')
+        if response and '<meta name="generator" content="WordPress' in response:
+            print('WordPress detected via meta tag.')
+            return True
+
+        print('WordPress detected via files and directories.')
+        return True
 
     async def check_readme(self, session):
         response = await self.fetch(session, f'{self.url}/readme.html')
@@ -82,9 +97,9 @@ class AsyncWordPressScanner:
         ]              
 
         for backup_file in backup_files:
-            response = await self.fetch(session, self.url + '/' + backup_file)
+            response = await self.fetch(session, f"{self.url}/{backup_file}")
             if response:
-                print(f'A backup file has been found at {self.url + '/' + backup_file}')
+                print(f'A backup file has been found at {self.url}/{backup_file}')
 
     async def check_directory_listing(self, session):
         directories = ['wp-content/uploads/', 'wp-content/plugins/', 'wp-content/themes/', 'wp-includes/', 'wp-admin/']
@@ -227,28 +242,26 @@ class AsyncWordPressScanner:
             tasks = []
             if checks.get('wordpress'):
                 tasks.append(self.check_wordpress(session))
-            if checks.get('url'):
-                tasks.append(self.check_url(session))
             if checks.get('readme'):
                 tasks.append(self.check_readme(session))
-            if checks.get('debug_log'):
+            if checks.get('debug-log'):
                 tasks.append(self.check_debug_log(session))
-            if checks.get('backup_file'):
+            if checks.get('backup-file'):
                 tasks.append(self.check_backup_file(session))
-            if checks.get('directory_listing'):
+            if checks.get('directory-listing'):
                 tasks.append(self.check_directory_listing(session))
-            if checks.get('xml_rpc'):
+            if checks.get('xml-rpc'):
                 tasks.append(self.is_xml_rpc(session))
-            if checks.get('robots_text'):
+            if checks.get('robots-text'):
                 tasks.append(self.check_robots_text(session))
-            if checks.get('full_path_disclosure'):
+            if checks.get('full-path-disclosure'):
                 tasks.append(self.check_full_path_disclosure(session))
-            if checks.get('enum_users'):
+            if checks.get('enum-users'):
                 tasks.append(self.enum_wordpress_users(session))
-            if checks.get('sitemap_forms'):
+            if checks.get('sitemap-forms'):
                 forms = await self.crawl_sitemap_for_forms(session)
                 print(f'Forms with input fields found at: {forms}')
-            if checks.get('check_plugins'):
+            if checks.get('check-plugins'):
                 await self.check_plugins(session)
 
             await asyncio.gather(*tasks)
@@ -258,7 +271,6 @@ if __name__ == '__main__':
     parser.add_argument('url', help='The URL of the WordPress site to scan')
     parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only!', help='User agent to use')
     parser.add_argument('--wordpress', action='store_true', help='Check if site is a WordPress site')
-    parser.add_argument('--url', action='store_true', help='Check the URL')
     parser.add_argument('--readme', action='store_true', help='Check for readme file')
     parser.add_argument('--debug-log', action='store_true', help='Check for debug log')
     parser.add_argument('--backup-file', action='store_true', help='Check for backup files')
