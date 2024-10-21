@@ -279,25 +279,32 @@ class AsyncWordPressScanner:
         plugin_directory_url = f'{self.url}/wp-content/plugins/'
         rest_api_plugins_url = f'{self.url}/wp-json/plugins/v1/all'
         known_plugins = [
-            'wordpress-seo/wp-seo.php',          # Yoast SEO
-            'akismet/akismet.php',                # Akismet
-            'woocommerce/woocommerce.php',        # WooCommerce
-            'elementor/elementor.php',            # Elementor Page Builder
-            'wpforms-lite/wpforms.php',           # WPForms
-            'contact-form-7/wp-contact-form-7.php',  # Contact Form 7
-            'jetpack/jetpack.php',                # Jetpack
-            'wp-super-cache/wp-cache.php',        # WP Super Cache
-            'wp-rocket/wp-rocket.php',            # WP Rocket
-            'gravityforms/gravityforms.php',     # Gravity Forms
-            'bbpress/bbpress.php',                # bbPress
-            'wpml-multilingual-cms/wpml.php',    # WPML
-            'yoast-seo/yoast-seo.php',           # Yoast SEO Premium
-            'nextgen-gallery/nggallery.php',      # NextGEN Gallery
-            'wordfence/wordfence.php',            # Wordfence Security
-            'duplicate-post/duplicate-post.php',  # Duplicate Post
-            'updraftplus/updraftplus.php',        # UpdraftPlus
-            'redirection/redirection.php',        # Redirection
+            'wordpress-seo/wp-seo.php',                  # Yoast SEO
+            'akismet/akismet.php',                        # Akismet
+            'woocommerce/woocommerce.php',                # WooCommerce
+            'elementor/elementor.php',                    # Elementor Page Builder
+            'wpforms-lite/wpforms.php',                   # WPForms
+            'contact-form-7/wp-contact-form-7.php',      # Contact Form 7
+            'jetpack/jetpack.php',                        # Jetpack
+            'wp-super-cache/wp-cache.php',                # WP Super Cache
+            'wp-rocket/wp-rocket.php',                    # WP Rocket
+            'gravityforms/gravityforms.php',             # Gravity Forms
+            'bbpress/bbpress.php',                        # bbPress
+            'wpml-multilingual-cms/wpml.php',            # WPML
+            'nextgen-gallery/nggallery.php',              # NextGEN Gallery
+            'wordfence/wordfence.php',                    # Wordfence Security
+            'duplicate-post/duplicate-post.php',          # Duplicate Post
+            'updraftplus/updraftplus.php',                # UpdraftPlus
+            'redirection/redirection.php',                # Redirection
             'all-in-one-seo-pack/all_in_one_seo_pack.php',  # All in One SEO Pack
+            'mailchimp-for-wp/mailchimp-for-wp.php',     # Mailchimp for WordPress
+            'social-warfare/social-warfare.php',          # Social Warfare
+            'wp-optimize/wp-optimize.php',                # WP-Optimize
+            'monsterinsights/google-analytics-for-wordpress.php',  # MonsterInsights
+            'schema-and-structured-data-for-wp/schema-and-structured-data-for-wp.php',  # Schema & Structured Data for WP
+            'redirection/redirection.php',                # Redirection
+            'wp-job-manager/wp-job-manager.php',          # WP Job Manager
+            'wp-user-frontend/wp-user-frontend.php',      # WP User Frontend
         ]
 
         response = await self.fetch(session, plugin_directory_url)
