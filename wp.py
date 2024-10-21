@@ -349,13 +349,12 @@ class AsyncWordPressScanner:
 
         return []
 
-    async def check_themes(self, session):
-        print(f'{Fore.GREEN}\nChecking installed themes on {self.url}...{Style.RESET_ALL}')
-    
     async def check_plugins(self, session):
         print(f'{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}')
+        
         plugin_directory_url = f'{self.url}/wp-content/plugins/'
         rest_api_plugins_url = f'{self.url}/wp-json/plugins/v1/all'
+        
         known_plugins = [
             'wordpress-seo/wp-seo.php',                  # Yoast SEO
             'akismet/akismet.php',                        # Akismet
@@ -388,7 +387,6 @@ class AsyncWordPressScanner:
             'wp-cli/faq',                                # WP-CLI
             'livechat/livechat.php',                      # LiveChat
             'tablepress/tablepress.php',                  # TablePress
-            'contact-form-7/wp-contact-form-7.php',      # Contact Form 7
             'wp-smtp/wp-smtp.php',                        # WP Mail SMTP
             'wp-customer-reviews/wp-customer-reviews.php', # WP Customer Reviews
             'login-lockdown/login-lockdown.php',          # Login LockDown
@@ -407,30 +405,39 @@ class AsyncWordPressScanner:
         ]
 
         response = await self.fetch(session, plugin_directory_url)
-        if response and 'Index of' in response:
-            print(f'{Fore.GREEN}Plugin directory listing found at: {plugin_directory_url}{Style.RESET_ALL}')
+        if response:
+            print(f'Successfully fetched plugin directory, status: {response.status}')
+            try:
+                response_text = await response.text()
+                if 'Index of' in response_text:
+                    print(f'{Fore.GREEN}Plugin directory listing found at: {plugin_directory_url}{Style.RESET_ALL}')
+            except Exception as e:
+                print(f'{Fore.RED}Error reading plugin directory response: {e}{Style.RESET_ALL}')
 
         response = await self.fetch(session, rest_api_plugins_url)
         if response:
+            print(f'Successfully fetched REST API plugins, status: {response.status}')
             try:
-                plugins = json.loads(response)
+                response_text = await response.text()
+                plugins = json.loads(response_text)
+
                 print(f'{Fore.GREEN}Installed Plugins from REST API:{Style.RESET_ALL}')
-                for plugin in plugins:
-                    print(f'{Fore.GREEN}{plugin["name"]} - Version: {plugin["version"]}{Style.RESET_ALL}')
+                installed_plugins = [plugin["slug"] + '/' + plugin["file"] for plugin in plugins]
+                
+                for plugin in installed_plugins:
+                    if plugin in known_plugins:
+                        print(f'{Fore.GREEN}{plugin} - Version: {next(p["version"] for p in plugins if (p["slug"] + "/" + p["file"]) == plugin)}{Style.RESET_ALL}')
+                    else:
+                        print(f'{Fore.YELLOW}{plugin} - Version: {next(p["version"] for p in plugins if (p["slug"] + "/" + p["file"]) == plugin)} (Unknown plugin){Style.RESET_ALL}')
             except json.JSONDecodeError:
                 print(f'{Fore.RED}Failed to decode JSON response from the REST API.{Style.RESET_ALL}')
 
-        for plugin in known_plugins:
-            plugin_url = f'{self.url}/wp-content/plugins/{plugin}'
-            response = await self.fetch(session, plugin_url)
-            if response:
-                print(f'{Fore.GREEN}Known plugin found: {plugin}{Style.RESET_ALL}')
-
     async def check_themes(self, session):
         print(f'{Fore.GREEN}\nChecking installed themes on {self.url}...{Style.RESET_ALL}')
-        
+
         theme_directory_url = f'{self.url}/wp-content/themes/'
         rest_api_themes_url = f'{self.url}/wp-json/wp/v2/themes'
+        
         known_themes = [
             'twentytwentyone',           # Twenty Twenty-One
             'twentytwentytwo',           # Twenty Twenty-Two
@@ -489,24 +496,32 @@ class AsyncWordPressScanner:
         ]
 
         response = await self.fetch(session, theme_directory_url)
-        if response and 'Index of' in response:
-            print(f'{Fore.GREEN}Theme directory listing found at: {theme_directory_url}{Style.RESET_ALL}')
+        if response:
+            print(f'Successfully fetched theme directory, status: {response.status}')
+            try:
+                response_text = await response.text()
+                if 'Index of' in response_text:
+                    print(f'{Fore.GREEN}Theme directory listing found at: {theme_directory_url}{Style.RESET_ALL}')
+            except Exception as e:
+                print(f'{Fore.RED}Error reading theme directory response: {e}{Style.RESET_ALL}')
 
         response = await self.fetch(session, rest_api_themes_url)
         if response:
+            print(f'Successfully fetched REST API themes, status: {response.status}')
             try:
-                themes = json.loads(response)
+                response_text = await response.text()
+                themes = json.loads(response_text)
+
                 print(f'{Fore.GREEN}Installed Themes from REST API:{Style.RESET_ALL}')
-                for theme in themes:
-                    print(f'{Fore.GREEN}{theme["name"]} - Version: {theme["version"]}{Style.RESET_ALL}')
+                installed_themes = [theme["name"] for theme in themes]
+
+                for theme in installed_themes:
+                    if theme in known_themes:
+                        print(f'{Fore.GREEN}{theme} - Version: {next(t["version"] for t in themes if t["name"] == theme)}{Style.RESET_ALL}')
+                    else:
+                        print(f'{Fore.YELLOW}{theme} - Version: {next(t["version"] for t in themes if t["name"] == theme)} (Unknown theme){Style.RESET_ALL}')
             except json.JSONDecodeError:
                 print(f'{Fore.RED}Failed to decode JSON response from the REST API.{Style.RESET_ALL}')
-
-        for theme in known_themes:
-            theme_url = f'{self.url}/wp-content/themes/{theme}'
-            response = await self.fetch(session, theme_url)
-            if response:
-                print(f'{Fore.GREEN}Known theme found: {theme}{Style.RESET_ALL}')
 
     async def scan(self, checks):
         async with aiohttp.ClientSession() as session:
