@@ -15,10 +15,10 @@ class AsyncWordPressScanner:
         self.version = None
         self.users = []
     
-    async def fetch(self, session, url, retries=3):
+    async def fetch(self, session, url, retries=5):
         for attempt in range(retries):
             try:
-                async with session.get(url, headers={'User-Agent': self.user_agent}, timeout=10) as response:
+                async with session.get(url, headers={'User-Agent': self.user_agent}, timeout=20) as response:
                     print(f'{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}')
                     
                     if response.status == 200:
@@ -30,18 +30,18 @@ class AsyncWordPressScanner:
                         return None
                     elif response.status >= 500:
                         print(f'{Fore.RED}Server error at {url}: Status {response.status}{Style.RESET_ALL}')
-                        return None
+                        await asyncio.sleep(2)
                     else:
                         print(f'{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}')
                         return None
 
             except asyncio.TimeoutError:
                 print(f'{Fore.RED}Timeout error fetching {url} on attempt {attempt + 1}{Style.RESET_ALL}')
+                await asyncio.sleep(2)
             except Exception as e:
                 print(f'{Fore.RED}Error fetching {url} on attempt {attempt + 1}: {e}{Style.RESET_ALL}')
-            
-            await asyncio.sleep(2)
-
+                await asyncio.sleep(2)
+                
         print(f'{Fore.RED}All attempts to fetch {url} failed.{Style.RESET_ALL}')
         return None
 
@@ -226,9 +226,23 @@ class AsyncWordPressScanner:
 
     async def enum_wordpress_users(self, session):
         print(f'{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}')
+        url = f'{self.url}/wp-json/wp/v2/users?page=1&per_page=100'
+        response = await self.fetch(session, url)
+
+        if response and response.status == 200:
+            current_users = await response.json()
+            print(f'Fetched users: {len(current_users)} found.')
+            for user in current_users:
+                print(f'{Fore.GREEN}Identified user: ID: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
+        else:
+            print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
+
+    # Recode (Better way of enum_wordpress_users (in the works))
+    """async def enum_wordpress_users(self, session):
+        print(f'{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}')
         users = []
         page = 1
-        per_page = 100
+        per_page = 5
 
         while True:
             url = f'{self.url}/wp-json/wp/v2/users?page={page}&per_page={per_page}'
@@ -241,28 +255,21 @@ class AsyncWordPressScanner:
 
                 try:
                     text = await response.text()
-                    current_users = json.loads(text)
-                    
-                    print(f'Fetched page {page}: {len(current_users)} users found.')
+                    user_pattern = re.compile(r'"id":\s*(\d+),"name":\s*"([^"]+)","slug":\s*"([^"]+)","email":\s*"([^"]*)"')
+                    current_users = user_pattern.findall(text)
 
                     if current_users:
-                        users.extend(current_users)
+                        print(f'Fetched page {page}: {len(current_users)} users found.')
                         for user in current_users:
-                            user_id = user.get("id", "N/A")
-                            user_name = user.get("name", "N/A")
-                            user_slug = user.get("slug", "N/A")
-                            user_email = user.get("email", "N/A")
-
+                            user_id, user_name, user_slug, user_email = user
                             print(f'{Fore.GREEN}Identified user: ID: {user_id}, Name: {user_name}, Slug: {user_slug}, Email: {user_email}{Style.RESET_ALL}')
+                        
+                        users.extend(current_users)
                         page += 1
                     else:
                         print(f'{Fore.YELLOW}No more users found on page {page}.{Style.RESET_ALL}')
                         break
 
-                except json.JSONDecodeError:
-                    print(f'{Fore.RED}Error parsing JSON response: Invalid JSON.{Style.RESET_ALL}')
-                    print(f'Response content: {text}')
-                    break
                 except Exception as e:
                     print(f'{Fore.RED}Unexpected error: {e}{Style.RESET_ALL}')
                     break
@@ -272,7 +279,7 @@ class AsyncWordPressScanner:
 
         self.users = users
         if not users:
-            print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')
+            print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')"""
 
     async def extract_version(self, response):
         print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
