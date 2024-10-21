@@ -46,6 +46,9 @@ class AsyncWordPressScanner:
             print(f"Debug log file found at {self.url}/debug.log")
 
     async def check_backup_file(self, session):
+        #'*.bak', '*.backup', '*.old', '*.orig', '*.swp', 
+        #'*.swo', '*.swn', '*.temp', '*.tmp'
+
         backup_files = [
             'wp-config.php~', 'wp-config.php.save', '.wp-config.php.bck', 
             'wp-config.php.bck', '.wp-config.php.swp', 'wp-config.php.swp', 
@@ -61,7 +64,6 @@ class AsyncWordPressScanner:
             'wp-config.back', 'wp-config.php.back', 'wp-config.test', 
             'wp-config.php.test', "wp-config.php.1","wp-config.php.2",
             "wp-config.php.3", "wp-config.php._inc", "wp-config_inc",
-            
             'wp-config.php.SAVE', '.wp-config.php.BCK', 
             'wp-config.php.BCK', '.wp-config.php.SWP', 'wp-config.php.SWP', 
             'wp-config.php.SWO', 'wp-config.php_BAK', 'wp-config.BAK', 
@@ -74,7 +76,9 @@ class AsyncWordPressScanner:
             'wp-config.DB', 'wp-config.php.DB', 'wp-config.DAT',
             'wp-config.php.DAT', 'wp-config.TAR.GZ', 'wp-config.php.TAR.GZ', 
             'wp-config.BACK', 'wp-config.php.BACK', 'wp-config.TEST', 
-            'wp-config.php.TEST', "wp-config.php._INC", "wp-config_INC"
+            'wp-config.php.TEST', "wp-config.php._INC", "wp-config_INC",
+            'wp-config.local.php', 'wp-config.prod.php', 'wp-config.dev.php', 
+            '.env', 'README.md', '.gitignore', 
         ]              
 
         for backup_file in backup_files:
