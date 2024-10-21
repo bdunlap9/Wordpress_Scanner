@@ -273,6 +273,8 @@ class AsyncWordPressScanner:
 
         return []
 
+    async def check_themes(self, session):
+        print(f'{Fore.GREEN}\nChecking installed themes on {self.url}...{Style.RESET_ALL}')
     
     async def check_plugins(self, session):
         print(f'{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}')
@@ -302,9 +304,30 @@ class AsyncWordPressScanner:
             'wp-optimize/wp-optimize.php',                # WP-Optimize
             'monsterinsights/google-analytics-for-wordpress.php',  # MonsterInsights
             'schema-and-structured-data-for-wp/schema-and-structured-data-for-wp.php',  # Schema & Structured Data for WP
-            'redirection/redirection.php',                # Redirection
             'wp-job-manager/wp-job-manager.php',          # WP Job Manager
             'wp-user-frontend/wp-user-frontend.php',      # WP User Frontend
+            'redirection/redirection.php',                # Redirection
+            'smush/wp-smush.php',                         # Smush Image Compression
+            'duplicator/duplicator.php',                  # Duplicator
+            'wp-cli/faq',                                # WP-CLI
+            'livechat/livechat.php',                      # LiveChat
+            'tablepress/tablepress.php',                  # TablePress
+            'contact-form-7/wp-contact-form-7.php',      # Contact Form 7
+            'wp-smtp/wp-smtp.php',                        # WP Mail SMTP
+            'wp-customer-reviews/wp-customer-reviews.php', # WP Customer Reviews
+            'login-lockdown/login-lockdown.php',          # Login LockDown
+            'insert-headers-and-footers/insert-headers-and-footers.php', # Insert Headers and Footers
+            'schema-woocommerce/schema-woocommerce.php',  # Schema & Structured Data for WooCommerce
+            'wp-maintenance-mode/wp-maintenance-mode.php', # WP Maintenance Mode
+            'shortcodes-ultimate/shortcodes-ultimate.php', # Shortcodes Ultimate
+            'google-site-kit/google-site-kit.php',        # Site Kit by Google
+            'elementor-pro/elementor.php',                # Elementor Pro
+            'memberpress/memberpress.php',                # MemberPress
+            'wp-ultimate-recipe/wp-ultimate-recipe.php', # WP Ultimate Recipe
+            'popup-maker/popup-maker.php',                # Popup Maker
+            'advanced-custom-fields/acf.php',            # Advanced Custom Fields
+            'nextgen-gallery/nggallery.php',              # NextGEN Gallery
+            'wp-testimonial/wordpress-testimonial.php',  # WP Testimonials
         ]
 
         response = await self.fetch(session, plugin_directory_url)
@@ -327,6 +350,88 @@ class AsyncWordPressScanner:
             if response:
                 print(f'{Fore.GREEN}Known plugin found: {plugin}{Style.RESET_ALL}')
 
+    async def check_themes(self, session):
+        print(f'{Fore.GREEN}\nChecking installed themes on {self.url}...{Style.RESET_ALL}')
+        
+        theme_directory_url = f'{self.url}/wp-content/themes/'
+        rest_api_themes_url = f'{self.url}/wp-json/wp/v2/themes'
+        known_themes = [
+            'twentytwentyone',           # Twenty Twenty-One
+            'twentytwentytwo',           # Twenty Twenty-Two
+            'astra',                     # Astra
+            'divi',                      # Divi
+            'generatepress',             # GeneratePress
+            'oceanwp',                   # OceanWP
+            'hello-elementor',           # Hello Elementor (Elementor)
+            'neve',                      # Neve
+            'flatsome',                  # Flatsome
+            'hestia',                    # Hestia
+            'avada',                     # Avada
+            'beaver-builder',            # Beaver Builder
+            'soledad',                   # Soledad
+            'wp-bootstrap-blocks',       # WP Bootstrap Blocks
+            'storefront',                # Storefront (WooCommerce)
+            'sydney',                    # Sydney
+            'kalium',                    # Kalium
+            'salient',                   # Salient
+            'ultra',                     # Ultra
+            'enfold',                    # Enfold
+            'blocksy',                   # Blocksy
+            'total',                     # Total
+            'porto',                     # Porto
+            'neve',                      # Neve
+            'phlox',                     # Phlox
+            'jevelin',                   # Jevelin
+            'zakra',                     # Zakra
+            'archi',                     # Archi
+            'bridge',                    # Bridge
+            'generateblocks',            # GenerateBlocks
+            'wp-ninja',                  # WP Ninja
+            'shapely',                   # Shapely
+            'genesis',                   # Genesis Framework
+            'divi-builder',              # Divi Builder
+            'mystique',                  # Mystique
+            'dixie',                     # Dixie
+            'kALLYAS',                   # KALLYAS
+            'newspaper',                 # Newspaper
+            'customify',                 # Customify
+            'uncode',                    # Uncode
+            'salient',                   # Salient
+            'fastest',                   # Fastest
+            'semplice',                  # Semplice
+            'kalium',                    # Kalium
+            'x',                         # X Theme
+            'beach',                     # Beach
+            'florence',                  # Florence
+            'patreon',                   # Patreon
+            'bento',                     # Bento
+            'woodmart',                  # WoodMart
+            'shopkeeper',                # Shopkeeper
+            'oulex',                     # Oulex
+            'consulting',                # Consulting
+            'magazine',                  # Magazine
+        ]
+
+        response = await self.fetch(session, theme_directory_url)
+        if response and 'Index of' in response:
+            print(f'{Fore.GREEN}Theme directory listing found at: {theme_directory_url}{Style.RESET_ALL}')
+
+        response = await self.fetch(session, rest_api_themes_url)
+        if response:
+            try:
+                themes = json.loads(response)
+                print(f'{Fore.GREEN}Installed Themes from REST API:{Style.RESET_ALL}')
+                for theme in themes:
+                    print(f'{Fore.GREEN}{theme["name"]} - Version: {theme["version"]}{Style.RESET_ALL}')
+            except json.JSONDecodeError:
+                print(f'{Fore.RED}Failed to decode JSON response from the REST API.{Style.RESET_ALL}')
+
+        for theme in known_themes:
+            theme_url = f'{self.url}/wp-content/themes/{theme}'
+            response = await self.fetch(session, theme_url)
+            if response:
+                print(f'{Fore.GREEN}Known theme found: {theme}{Style.RESET_ALL}')
+
     async def scan(self, checks):
         async with aiohttp.ClientSession() as session:
             tasks = []
@@ -343,6 +448,7 @@ class AsyncWordPressScanner:
                 'enum-users': self.enum_wordpress_users,
                 'sitemap-forms': self.crawl_sitemap_for_forms,
                 'check-plugins': self.check_plugins,
+                'check-themes': self.check_themes,
             }
 
             for check in checks:
@@ -355,7 +461,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
     parser.add_argument('url', help='The URL of the WordPress site to scan')
     parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only!', help='User agent to use')
-    parser.add_argument('--checks', default='wordpress', help='Comma-separated list of checks to perform: wordpress, readme, debug-log, backup-file, directory-listing, xml-rpc, robots-text, full-path-disclosure, enum-users, sitemap-forms, check-plugins')
+    parser.add_argument('--checks', default='wordpress', help='Comma-separated list of checks to perform: wordpress, readme, debug-log, backup-file, directory-listing, xml-rpc, robots-text, full-path-disclosure, enum-users, sitemap-forms, check-plugins, check-themes')
 
     args = parser.parse_args()
     checks = args.checks.split(',')
