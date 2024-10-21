@@ -219,7 +219,7 @@ class AsyncWordPressScanner:
         if processed_urls is None:
             processed_urls = set()
 
-        robots_url = self.url + '/robots.txt'
+        robots_url = f"{self.url}/robots.txt"
         response = await self.fetch(session, robots_url)
 
         if response:
@@ -254,6 +254,7 @@ class AsyncWordPressScanner:
                                 for form in forms:
                                     if form.find('input', {'type': 'text'}):
                                         forms_with_input.append(sitemap_url)
+                                        print(f'{Fore.GREEN}Form detected at: {sitemap_url}{Style.RESET_ALL}')
                                         break  
 
                     for sitemap_url in urls:
@@ -263,13 +264,14 @@ class AsyncWordPressScanner:
 
                     return forms_with_input
                 else:
-                    print(f'Failed to fetch sitemap URL {sitemap_url}.')
+                    print(f'{Fore.RED}Failed to fetch sitemap URL: {sitemap_url}{Style.RESET_ALL}')
             else:
-                print(f'Sitemap URL {sitemap_url} has already been processed or is not found.')
+                print(f'{Fore.YELLOW}Sitemap URL {sitemap_url} has already been processed or is not found.{Style.RESET_ALL}')
         else:
-            print(f'Failed to fetch robots.txt from {robots_url}.')
+            print(f'{Fore.RED}Failed to fetch robots.txt from: {robots_url}{Style.RESET_ALL}')
 
         return []
+
     
     async def check_plugins(self, session):
         print(f'{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}')
