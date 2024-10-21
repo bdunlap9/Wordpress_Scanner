@@ -1,6 +1,9 @@
-import re, json, argparse, asyncio, aiohttp
+import re, json, argparse, asyncio, aiohttp, colorama
 from bs4 import BeautifulSoup
 from lxml import etree
+from colorama import Fore, Style
+
+colorama.init(autoreset=True)
 
 class AsyncWordPressScanner:
 
@@ -14,15 +17,17 @@ class AsyncWordPressScanner:
     async def fetch(self, session, url):
         try:
             async with session.get(url, headers={'User-Agent': self.user_agent}) as response:
-                print(f"Fetching {url} - Status: {response.status}")  # Log status
                 if response.status == 200:
+                    print(f"{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}")
                     return await response.text()
+                elif response.status == 404:
+                    # Don't print anything for 404 errors
+                    return None
                 else:
-                    print(f"Failed to fetch {url}: Status {response.status}")
+                    print(f"{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}")
         except Exception as e:
-            print(f'Error fetching {url}: {e}')
-        return None
-
+            print(f'{Fore.RED}Error fetching {url}: {e}{Style.RESET_ALL}')
+            return None
 
     async def check_wordpress(self, session):
         wordpress_files = [
@@ -33,47 +38,47 @@ class AsyncWordPressScanner:
             'wp-json/wp/v2/'
         ]
 
+        print(f"{Fore.GREEN}\nChecking if site is a WordPress site...{Style.RESET_ALL}")
         for path in wordpress_files:
             url = f"{self.url}/{path}"
             response = await self.fetch(session, url)
             if response:
-                print(f'WordPress detected via: {url}')
+                print(f'{Fore.GREEN}WordPress detected via: {url}{Style.RESET_ALL}')
                 break
         else:
-            print('Not a WordPress site.')
+            print(f'{Fore.RED}Not a WordPress site.{Style.RESET_ALL}')
             return False
 
         response = await self.fetch(session, self.url)
         if response and '<meta name="generator" content="WordPress' in response:
-            print('WordPress detected via meta tag.')
+            print(f'{Fore.GREEN}WordPress detected via meta tag.{Style.RESET_ALL}')
             return True
 
-        print('WordPress detected via files and directories.')
+        print(f'{Fore.GREEN}WordPress detected via files and directories.{Style.RESET_ALL}')
         return True
-
+    
     async def check_readme(self, session):
         response = await self.fetch(session, f'{self.url}/readme.html')
         if response:
-            print(f'Readme file found at {self.url}/readme.html')
+            print(f'{Fore.GREEN}README file found at {self.url}/readme.html{Style.RESET_ALL}')
+        else:
+            print(f'{Fore.RED}No README file found.{Style.RESET_ALL}')
 
     async def check_debug_log(self, session):
+        print(f"{Fore.GREEN}Checking for debug.log...{Style.RESET_ALL}")
         try:
             response = await self.fetch(session, f'{self.url}/debug.log')
             if response is not None:
                 if '404' in response:
-                    print(f'No debug log file found at {self.url}/debug.log (404 error)')
+                    print(f'{Fore.RED}No debug log file found at {self.url}/debug.log (404 error){Style.RESET_ALL}')
                 else:
-                    print(f'Debug log file found at {self.url}/debug.log')
+                    print(f'{Fore.GREEN}Debug log file found at {self.url}/debug.log{Style.RESET_ALL}')
             else:
-                print(f'Failed to fetch {self.url}/debug.log: No response received.')
+                print(f'{Fore.YELLOW}Failed to fetch {self.url}/debug.log: No response received.{Style.RESET_ALL}')
         except Exception as e:
-            print(f'Error checking debug log: {e}')
-
+            print(f'{Fore.RED}Error checking debug log: {e}{Style.RESET_ALL}')
 
     async def check_backup_file(self, session):
-        #'*.bak', '*.backup', '*.old', '*.orig', '*.swp', 
-        #'*.swo', '*.swn', '*.temp', '*.tmp'
-
         backup_files = [
             'wp-config.php~', 'wp-config.php.save', '.wp-config.php.bck', 
             'wp-config.php.bck', '.wp-config.php.swp', 'wp-config.php.swp', 
@@ -104,14 +109,19 @@ class AsyncWordPressScanner:
             'wp-config.php.TEST', "wp-config.php._INC", "wp-config_INC",
             'wp-config.local.php', 'wp-config.prod.php', 'wp-config.dev.php', 
             '.env', 'README.md', '.gitignore', 
-        ]              
+        ]
+
+        print(f"{Fore.GREEN}\nChecking for backup files...{Style.RESET_ALL}")
+        backup_found = False
 
         for backup_file in backup_files:
             response = await self.fetch(session, f"{self.url}/{backup_file}")
-            if response:
-                print(f'A backup file has been found at {self.url}/{backup_file}')
-            else:
-                print(f'No backup files found for {self.url}')
+            if response and response.status == 200:
+                print(f'{Fore.GREEN}Backup file found at: {self.url}/{backup_file}{Style.RESET_ALL}')
+                backup_found = True
+
+        if not backup_found:
+            print(f'{Fore.RED}No backup files found for {self.url}.{Style.RESET_ALL}')
 
     async def check_directory_listing(self, session):
         directories = ['wp-content/uploads/', 'wp-content/plugins/', 'wp-content/themes/', 'wp-includes/', 'wp-admin/']
@@ -268,50 +278,35 @@ class AsyncWordPressScanner:
     async def scan(self, checks):
         async with aiohttp.ClientSession() as session:
             tasks = []
-            if checks.get('wordpress'):
-                tasks.append(self.check_wordpress(session))
-            if checks.get('readme'):
-                tasks.append(self.check_readme(session))
-            if checks.get('debug-log'):
-                tasks.append(self.check_debug_log(session))
-            if checks.get('backup-file'):
-                tasks.append(self.check_backup_file(session))
-            if checks.get('directory-listing'):
-                tasks.append(self.check_directory_listing(session))
-            if checks.get('xml-rpc'):
-                tasks.append(self.is_xml_rpc(session))
-            if checks.get('robots-text'):
-                tasks.append(self.check_robots_text(session))
-            if checks.get('full-path-disclosure'):
-                tasks.append(self.check_full_path_disclosure(session))
-            if checks.get('enum-users'):
-                tasks.append(self.enum_wordpress_users(session))
-            if checks.get('sitemap-forms'):
-                forms = await self.crawl_sitemap_for_forms(session)
-                print(f'Forms with input fields found at: {forms}')
-            if checks.get('check-plugins'):
-                await self.check_plugins(session)
 
-            print(f'Running tasks: {tasks}')
+            check_methods = {
+                'wordpress': self.check_wordpress,
+                'readme': self.check_readme,
+                'debug-log': self.check_debug_log,
+                'backup-file': self.check_backup_file,
+                'directory-listing': self.check_directory_listing,
+                'xml-rpc': self.is_xml_rpc,
+                'robots-text': self.check_robots_text,
+                'full-path-disclosure': self.check_full_path_disclosure,
+                'enum-users': self.enum_wordpress_users,
+                'sitemap-forms': self.crawl_sitemap_for_forms,
+                'check-plugins': self.check_plugins,
+            }
+
+            for check in checks:
+                if check in check_methods:
+                    tasks.append(check_methods[check](session))
+
             await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='WordPress Scanner')
     parser.add_argument('url', help='The URL of the WordPress site to scan')
     parser.add_argument('--user-agent', default='Wordpresscan - For educational purpose only!', help='User agent to use')
-    parser.add_argument('--wordpress', action='store_true', help='Check if site is a WordPress site')
-    parser.add_argument('--readme', action='store_true', help='Check for readme file')
-    parser.add_argument('--debug-log', action='store_true', help='Check for debug log')
-    parser.add_argument('--backup-file', action='store_true', help='Check for backup files')
-    parser.add_argument('--directory-listing', action='store_true', help='Check for directory listing')
-    parser.add_argument('--xml-rpc', action='store_true', help='Check for XML-RPC interface')
-    parser.add_argument('--robots-text', action='store_true', help='Check for robots.txt')
-    parser.add_argument('--full-path-disclosure', action='store_true', help='Check for full path disclosure')
-    parser.add_argument('--enum-users', action='store_true', help='Enumerate WordPress users')
-    parser.add_argument('--sitemap-forms', action='store_true', help='Check for forms in the sitemap')
-    parser.add_argument('--check-plugins', action='store_true', help='Check for installed plugins')
+    parser.add_argument('--checks', default='wordpress', help='Comma-separated list of checks to perform: wordpress, readme, debug-log, backup-file, directory-listing, xml-rpc, robots-text, full-path-disclosure, enum-users, sitemap-forms, check-plugins')
 
     args = parser.parse_args()
+    checks = args.checks.split(',')
 
     scanner = AsyncWordPressScanner(args.url, args.user_agent)
-    asyncio.run(scanner.scan(vars(args)))
+    asyncio.run(scanner.scan(checks))
