@@ -1,10 +1,17 @@
 import re, json, argparse, asyncio, aiohttp, colorama, warnings
+from aiohttp import ClientConnectionError
 from bs4 import BeautifulSoup
 from lxml import etree
 from colorama import Fore, Style
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 colorama.init(autoreset=True)
+
+class Code_Color:
+    ok = f"{Fore.GREEN}[+]{Style.RESET_ALL}"         # Success
+    info = f"{Fore.BLUE}[*]{Style.RESET_ALL}"        # Info
+    error = f"{Fore.RED}[-]{Style.RESET_ALL}"        # Error
+    critical = f"{Fore.RED}[!]{Style.RESET_ALL}"     # Critical error
 
 class AsyncWordPressScanner:
 
@@ -227,17 +234,51 @@ class AsyncWordPressScanner:
             print(f'{Fore.RED}Failed to fetch rss-functions.php for FPD check.{Style.RESET_ALL}')
 
     async def enum_wordpress_users(self, session):
-        print(f'{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}')
-        url = f'{self.url}/wp-json/wp/v2/users?page=1&per_page=100'
-        response = await self.fetch(session, url)
+        if self.url.endswith("/"):
+            self.url = self.url[:-1]
+        wp_path = "/wp-json/wp/v2/users"
+        final_url = self.url + wp_path
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(final_url, headers=headers) as response:
+                    if response.status == 200:
+                        raw_json = await response.text()
 
-        if response and response.status == 200:
-            current_users = await response.json()
-            print(f'Fetched users: {len(current_users)} found.')
-            for user in current_users:
-                print(f'{Fore.GREEN}Identified user: ID: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
-        else:
-            print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
+                        try:
+                            raw_text = json.loads(raw_json)
+                        except json.JSONDecodeError:
+                            print(f"{Code_Color.error} An error occurred while loading JSON, possibly a redirection. Check manually.")
+                            return
+
+                        total_users = len(raw_text)
+                        print(f"{Code_Color.ok} {total_users} Users found\n")
+
+                        for user in raw_text:
+                            user_id = user.get('id')
+                            full_name = user.get('name')
+                            username = user.get('slug')
+
+                            print(f"{Code_Color.info} User ID: {user_id}")
+                            print(f"{Code_Color.info} Name: {full_name}")
+                            print(f"{Code_Color.info} Username: {username}")
+                            print(f"{Code_Color.info} {'-' * (10 + len(username))}")
+                    else:
+                        if response.status == 401:
+                            print(f"\n{Code_Color.error} Got 401 Unauthorized")
+                        elif response.status == 403:
+                            print(f"\n{Code_Color.error} Got 403 Forbidden")
+                        elif response.status == 404:
+                            print(f"\n{Code_Color.error} Got 404 Not Found")
+                        elif response.status == 500:
+                            print(f"\n{Code_Color.error} Got 500 Internal Server Error")
+                        else:
+                            print(f"\n{Code_Color.error} Got an unknown status code: {response.status}")
+            except aiohttp.ClientError as e:
+                print(f"{Code_Color.critical} A connection error occurred: {e}")
 
     async def extract_version(self, response):
         print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
