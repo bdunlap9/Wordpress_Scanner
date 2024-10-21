@@ -1,8 +1,9 @@
-import re, json, argparse, asyncio, aiohttp, colorama
+import re, json, argparse, asyncio, aiohttp, colorama, warnings
 from bs4 import BeautifulSoup
 from lxml import etree
 from colorama import Fore, Style
 
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 colorama.init(autoreset=True)
 
 class AsyncWordPressScanner:
