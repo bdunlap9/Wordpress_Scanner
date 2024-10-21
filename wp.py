@@ -19,12 +19,19 @@ class AsyncWordPressScanner:
         try:
             async with session.get(url, headers={'User-Agent': self.user_agent}) as response:
                 if response.status == 200:
-                    print(f"{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}")
+                    print(f'{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}')
                     return await response.text()
                 elif response.status == 404:
+                    #print(f'{Fore.YELLOW}URL not found: {url}{Style.RESET_ALL}')
+                    return None
+                elif response.status == 401:
+                    print(f'{Fore.RED}Unauthorized access to {url}: Status {response.status}{Style.RESET_ALL}')
+                    return None
+                elif response.status >= 500:
+                    print(f'{Fore.RED}Server error at {url}: Status {response.status}{Style.RESET_ALL}')
                     return None
                 else:
-                    print(f"{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}")
+                    print(f'{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}')
         except Exception as e:
             print(f'{Fore.RED}Error fetching {url}: {e}{Style.RESET_ALL}')
             return None
