@@ -45,7 +45,14 @@ class AsyncWordPressScanner:
             'wp-json/wp/v2/'
         ]
 
+        wordpress_reliable_files = [
+            'readme.html',
+            'wp-json/wp/v2/',
+            'xmlrpc.php'
+        ]
+
         print(f"{Fore.GREEN}\nChecking if site is a WordPress site...{Style.RESET_ALL}")
+        
         for path in wordpress_files:
             url = f"{self.url}/{path}"
             response = await self.fetch(session, url)
@@ -53,8 +60,15 @@ class AsyncWordPressScanner:
                 print(f'{Fore.GREEN}WordPress detected via: {url}{Style.RESET_ALL}')
                 break
         else:
-            print(f'{Fore.RED}Not a WordPress site.{Style.RESET_ALL}')
-            return False
+            for reliable_path in wordpress_reliable_files:
+                url = f"{self.url}/{reliable_path}"
+                response = await self.fetch(session, url)
+                if response:
+                    print(f'{Fore.GREEN}WordPress detected via reliable method: {url}{Style.RESET_ALL}')
+                    break
+            else:
+                print(f'{Fore.RED}Not a WordPress site.{Style.RESET_ALL}')
+                return False
 
         response = await self.fetch(session, self.url)
         if response and '<meta name="generator" content="WordPress' in response:
@@ -197,19 +211,30 @@ class AsyncWordPressScanner:
             print(f'{Fore.RED}Failed to fetch rss-functions.php for FPD check.{Style.RESET_ALL}')
 
     async def enum_wordpress_users(self, session):
-        print(f"{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}")
-        response = await self.fetch(session, f'{self.url}/wp-json/wp/v2/users')
-        
-        if response:
-            users = json.loads(response)
-            if users:
-                for user in users:
-                    print(f'{Fore.GREEN}Identified user: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
-                self.users = users
+        print(f'{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}')
+        users = []
+        page = 1
+        per_page = 100
+
+        while True:
+            response = await self.fetch(session, f'{self.url}/wp-json/wp/v2/users?page={page}&per_page={per_page}')
+            
+            if response:
+                current_users = json.loads(response)
+                if current_users:
+                    users.extend(current_users)
+                    for user in current_users:
+                        print(f'{Fore.GREEN}Identified user: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
+                    page += 1
+                else:
+                    break
             else:
-                print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')
-        else:
-            print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
+                print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
+                break
+
+        self.users = users
+        if not users:
+            print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')
 
     async def extract_version(self, response):
         print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
