@@ -272,7 +272,7 @@ class AsyncWordPressScanner:
         return []
     
     async def check_plugins(self, session):
-        print(f"{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}")
+        print(f'{Fore.GREEN}\nChecking installed plugins on {self.url}...{Style.RESET_ALL}')
         plugin_directory_url = f'{self.url}/wp-content/plugins/'
         rest_api_plugins_url = f'{self.url}/wp-json/plugins/v1/all'
         known_plugins = [
@@ -297,9 +297,8 @@ class AsyncWordPressScanner:
             'all-in-one-seo-pack/all_in_one_seo_pack.php',  # All in One SEO Pack
         ]
 
-
         response = await self.fetch(session, plugin_directory_url)
-        if response and "Index of" in response:
+        if response and 'Index of' in response:
             print(f'{Fore.GREEN}Plugin directory listing found at: {plugin_directory_url}{Style.RESET_ALL}')
 
         response = await self.fetch(session, rest_api_plugins_url)
