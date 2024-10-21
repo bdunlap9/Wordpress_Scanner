@@ -239,50 +239,6 @@ class AsyncWordPressScanner:
         else:
             print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
 
-    # Recode (Better way of enum_wordpress_users (in the works))
-    """async def enum_wordpress_users(self, session):
-        print(f'{Fore.GREEN}\nEnumerating WordPress users on {self.url}...{Style.RESET_ALL}')
-        users = []
-        page = 1
-        per_page = 5
-
-        while True:
-            url = f'{self.url}/wp-json/wp/v2/users?page={page}&per_page={per_page}'
-            response = await self.fetch(session, url)
-
-            if response:
-                if 'X-WP-Total' in response.headers:
-                    total_users = response.headers['X-WP-Total']
-                    print(f'Total users available: {total_users}')
-
-                try:
-                    text = await response.text()
-                    user_pattern = re.compile(r'"id":\s*(\d+),"name":\s*"([^"]+)","slug":\s*"([^"]+)","email":\s*"([^"]*)"')
-                    current_users = user_pattern.findall(text)
-
-                    if current_users:
-                        print(f'Fetched page {page}: {len(current_users)} users found.')
-                        for user in current_users:
-                            user_id, user_name, user_slug, user_email = user
-                            print(f'{Fore.GREEN}Identified user: ID: {user_id}, Name: {user_name}, Slug: {user_slug}, Email: {user_email}{Style.RESET_ALL}')
-                        
-                        users.extend(current_users)
-                        page += 1
-                    else:
-                        print(f'{Fore.YELLOW}No more users found on page {page}.{Style.RESET_ALL}')
-                        break
-
-                except Exception as e:
-                    print(f'{Fore.RED}Unexpected error: {e}{Style.RESET_ALL}')
-                    break
-            else:
-                print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
-                break
-
-        self.users = users
-        if not users:
-            print(f'{Fore.YELLOW}No users found.{Style.RESET_ALL}')"""
-
     async def extract_version(self, response):
         print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
         match = re.search(r'Version ([0-9]+\.[0-9]+\.?[0-9]*)', response)
