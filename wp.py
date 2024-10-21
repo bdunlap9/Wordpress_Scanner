@@ -14,27 +14,36 @@ class AsyncWordPressScanner:
         self.files = set()
         self.version = None
         self.users = []
-
-    async def fetch(self, session, url):
-        try:
-            async with session.get(url, headers={'User-Agent': self.user_agent}) as response:
-                if response.status == 200:
+    
+    async def fetch(self, session, url, retries=3):
+        for attempt in range(retries):
+            try:
+                async with session.get(url, headers={'User-Agent': self.user_agent}, timeout=10) as response:
                     print(f'{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}')
-                    return await response.text()
-                elif response.status == 404:
-                    #print(f'{Fore.YELLOW}URL not found: {url}{Style.RESET_ALL}')
-                    return None
-                elif response.status == 401:
-                    print(f'{Fore.RED}Unauthorized access to {url}: Status {response.status}{Style.RESET_ALL}')
-                    return None
-                elif response.status >= 500:
-                    print(f'{Fore.RED}Server error at {url}: Status {response.status}{Style.RESET_ALL}')
-                    return None
-                else:
-                    print(f'{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}')
-        except Exception as e:
-            print(f'{Fore.RED}Error fetching {url}: {e}{Style.RESET_ALL}')
-            return None
+                    
+                    if response.status == 200:
+                        return response
+                    elif response.status == 404:
+                        return None
+                    elif response.status == 401:
+                        print(f'{Fore.RED}Unauthorized access to {url}: Status {response.status}{Style.RESET_ALL}')
+                        return None
+                    elif response.status >= 500:
+                        print(f'{Fore.RED}Server error at {url}: Status {response.status}{Style.RESET_ALL}')
+                        return None
+                    else:
+                        print(f'{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}')
+                        return None
+
+            except asyncio.TimeoutError:
+                print(f'{Fore.RED}Timeout error fetching {url} on attempt {attempt + 1}{Style.RESET_ALL}')
+            except Exception as e:
+                print(f'{Fore.RED}Error fetching {url} on attempt {attempt + 1}: {e}{Style.RESET_ALL}')
+            
+            await asyncio.sleep(2)
+
+        print(f'{Fore.RED}All attempts to fetch {url} failed.{Style.RESET_ALL}')
+        return None
 
     async def check_wordpress(self, session):
         wordpress_files = [
@@ -71,13 +80,18 @@ class AsyncWordPressScanner:
                 return False
 
         response = await self.fetch(session, self.url)
-        if response and '<meta name="generator" content="WordPress' in response:
-            print(f'{Fore.GREEN}WordPress detected via meta tag.{Style.RESET_ALL}')
-            return True
-
+        if response:
+            try:
+                main_content = await response.text()
+                if '<meta name="generator" content="WordPress' in main_content:
+                    print(f'{Fore.GREEN}WordPress detected via meta tag.{Style.RESET_ALL}')
+                    return True
+            except Exception as e:
+                print(f'{Fore.RED}Error reading main page content: {e}{Style.RESET_ALL}')
+        
         print(f'{Fore.GREEN}WordPress detected via files and directories.{Style.RESET_ALL}')
         return True
-    
+        
     async def check_readme(self, session):
         response = await self.fetch(session, f'{self.url}/readme.html')
         if response:
@@ -217,16 +231,40 @@ class AsyncWordPressScanner:
         per_page = 100
 
         while True:
-            response = await self.fetch(session, f'{self.url}/wp-json/wp/v2/users?page={page}&per_page={per_page}')
-            
+            url = f'{self.url}/wp-json/wp/v2/users?page={page}&per_page={per_page}'
+            response = await self.fetch(session, url)
+
             if response:
-                current_users = json.loads(response)
-                if current_users:
-                    users.extend(current_users)
-                    for user in current_users:
-                        print(f'{Fore.GREEN}Identified user: {user["id"]}, Name: {user["name"]}, Slug: {user["slug"]}{Style.RESET_ALL}')
-                    page += 1
-                else:
+                if 'X-WP-Total' in response.headers:
+                    total_users = response.headers['X-WP-Total']
+                    print(f'Total users available: {total_users}')
+
+                try:
+                    text = await response.text()
+                    current_users = json.loads(text)
+                    
+                    print(f'Fetched page {page}: {len(current_users)} users found.')
+
+                    if current_users:
+                        users.extend(current_users)
+                        for user in current_users:
+                            user_id = user.get("id", "N/A")
+                            user_name = user.get("name", "N/A")
+                            user_slug = user.get("slug", "N/A")
+                            user_email = user.get("email", "N/A")
+
+                            print(f'{Fore.GREEN}Identified user: ID: {user_id}, Name: {user_name}, Slug: {user_slug}, Email: {user_email}{Style.RESET_ALL}')
+                        page += 1
+                    else:
+                        print(f'{Fore.YELLOW}No more users found on page {page}.{Style.RESET_ALL}')
+                        break
+
+                except json.JSONDecodeError:
+                    print(f'{Fore.RED}Error parsing JSON response: Invalid JSON.{Style.RESET_ALL}')
+                    print(f'Response content: {text}')
+                    break
+                except Exception as e:
+                    print(f'{Fore.RED}Unexpected error: {e}{Style.RESET_ALL}')
                     break
             else:
                 print(f'{Fore.RED}Failed to fetch user data.{Style.RESET_ALL}')
