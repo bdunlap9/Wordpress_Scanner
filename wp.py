@@ -20,17 +20,19 @@ class AsyncWordPressScanner:
             try:
                 async with session.get(url, headers={'User-Agent': self.user_agent}, timeout=20) as response:
                     print(f'{Fore.CYAN}Fetching {url} - Status: {response.status}{Style.RESET_ALL}')
-                    
+
                     if response.status == 200:
                         return response
                     elif response.status == 404:
+                        print(f'{Fore.YELLOW}Page not found: {url}{Style.RESET_ALL}')
                         return None
                     elif response.status == 401:
                         print(f'{Fore.RED}Unauthorized access to {url}: Status {response.status}{Style.RESET_ALL}')
                         return None
                     elif response.status >= 500:
-                        print(f'{Fore.RED}Server error at {url}: Status {response.status}{Style.RESET_ALL}')
+                        print(f'{Fore.RED}Server error at {url}: Status {response.status}. Retrying...{Style.RESET_ALL}')
                         await asyncio.sleep(2)
+                        continue
                     else:
                         print(f'{Fore.YELLOW}Failed to fetch {url}: Status {response.status}{Style.RESET_ALL}')
                         return None
@@ -41,7 +43,7 @@ class AsyncWordPressScanner:
             except Exception as e:
                 print(f'{Fore.RED}Error fetching {url} on attempt {attempt + 1}: {e}{Style.RESET_ALL}')
                 await asyncio.sleep(2)
-                
+
         print(f'{Fore.RED}All attempts to fetch {url} failed.{Style.RESET_ALL}')
         return None
 
