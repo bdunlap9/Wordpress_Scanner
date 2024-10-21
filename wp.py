@@ -234,12 +234,12 @@ class AsyncWordPressScanner:
             print(f'{Fore.RED}Failed to fetch rss-functions.php for FPD check.{Style.RESET_ALL}')
 
     async def enum_wordpress_users(self, session):
-        if self.url.endswith("/"):
+        if self.url.endswith('/'):
             self.url = self.url[:-1]
-        wp_path = "/wp-json/wp/v2/users"
+        wp_path = '/wp-json/wp/v2/users'
         final_url = self.url + wp_path
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36'
         }
         
         async with aiohttp.ClientSession() as session:
@@ -251,34 +251,34 @@ class AsyncWordPressScanner:
                         try:
                             raw_text = json.loads(raw_json)
                         except json.JSONDecodeError:
-                            print(f"{Code_Color.error} An error occurred while loading JSON, possibly a redirection. Check manually.")
+                            print(f'{Code_Color.error} An error occurred while loading JSON, possibly a redirection. Check manually.')
                             return
 
                         total_users = len(raw_text)
-                        print(f"{Code_Color.ok} {total_users} Users found\n")
+                        print(f'{Code_Color.ok} {total_users} Users found\n')
 
                         for user in raw_text:
                             user_id = user.get('id')
                             full_name = user.get('name')
                             username = user.get('slug')
 
-                            print(f"{Code_Color.info} User ID: {user_id}")
-                            print(f"{Code_Color.info} Name: {full_name}")
-                            print(f"{Code_Color.info} Username: {username}")
-                            print(f"{Code_Color.info} {'-' * (10 + len(username))}")
+                            print(f'{Code_Color.info} User ID: {user_id}')
+                            print(f'{Code_Color.info} Name: {full_name}')
+                            print(f'{Code_Color.info} Username: {username}')
+                            print(f'{Code_Color.info} {"-" * (10 + len(username))}')
                     else:
                         if response.status == 401:
-                            print(f"\n{Code_Color.error} Got 401 Unauthorized")
+                            print(f'\n{Code_Color.error} Got 401 Unauthorized')
                         elif response.status == 403:
-                            print(f"\n{Code_Color.error} Got 403 Forbidden")
+                            print(f'\n{Code_Color.error} Got 403 Forbidden')
                         elif response.status == 404:
-                            print(f"\n{Code_Color.error} Got 404 Not Found")
+                            print(f'\n{Code_Color.error} Got 404 Not Found')
                         elif response.status == 500:
-                            print(f"\n{Code_Color.error} Got 500 Internal Server Error")
+                            print(f'\n{Code_Color.error} Got 500 Internal Server Error')
                         else:
-                            print(f"\n{Code_Color.error} Got an unknown status code: {response.status}")
+                            print(f'\n{Code_Color.error} Got an unknown status code: {response.status}')
             except aiohttp.ClientError as e:
-                print(f"{Code_Color.critical} A connection error occurred: {e}")
+                print(f'{Code_Color.critical} A connection error occurred: {e}')
 
     async def extract_version(self, response):
         print(f"{Fore.GREEN}Extracting WordPress version...{Style.RESET_ALL}")
